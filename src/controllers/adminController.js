@@ -55,6 +55,43 @@ const adminController = {
         } catch (error) {
             next(error);
         }
+    },
+    
+    /**
+     * Handler for marking attendance after an event
+     */
+    logVolunteerAttendance: async (req, res, next) => {
+        try {
+            const adminId = req.user.userId; // Securely pulled from the JWT token
+            const { eventId } = req.params;
+            const { volunteerId, status, hoursLogged } = req.body;
+
+            // 1. Basic Input Validation
+            if (!volunteerId || !status) {
+                return res.status(400).json({ error: 'Volunteer ID and attendance status are required.' });
+            }
+
+            if (status !== 'present' && status !== 'absent') {
+                return res.status(400).json({ error: 'Status must be strictly "present" or "absent".' });
+            }
+
+            // 2. Execute the Database Upsert
+            const attendanceRecord = await AdminModel.markAttendance(
+                eventId, 
+                volunteerId, 
+                adminId, 
+                status, 
+                hoursLogged || 0
+            );
+
+            res.status(200).json({
+                message: `Attendance marked as ${status} successfully.`,
+                data: attendanceRecord
+            });
+
+        } catch (error) {
+            next(error);
+        }
     }
 };
 

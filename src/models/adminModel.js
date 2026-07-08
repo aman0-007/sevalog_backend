@@ -76,6 +76,29 @@ const AdminModel = {
         `;
         const { rows } = await db.query(queryText);
         return rows[0];
+    },
+
+    /**
+     * Mark a volunteer's attendance and log their hours for an event
+     */
+    markAttendance: async (eventId, volunteerId, adminId, status, hoursLogged) => {
+        // If they are absent, ensure hours logged is strictly 0
+        const finalHours = status === 'absent' ? 0 : hoursLogged;
+
+        const queryText = `
+            INSERT INTO attendance (event_id, volunteer_id, marked_by, status, hours_logged)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (event_id, volunteer_id) 
+            DO UPDATE SET 
+                status = EXCLUDED.status,
+                hours_logged = EXCLUDED.hours_logged,
+                marked_by = EXCLUDED.marked_by
+            RETURNING attendance_id, status, hours_logged;
+        `;
+
+        const values = [eventId, volunteerId, adminId, status, finalHours];
+        const { rows } = await db.query(queryText, values);
+        return rows[0];
     }
 };
 

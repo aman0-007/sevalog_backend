@@ -12,4 +12,7 @@ router.get('/events/:eventId/report', verifyToken, isAdmin, adminController.getE
 // Route to fetch quick high-level summary cards for the Samithi stats page
 router.get('/summary-stats', verifyToken, isAdmin, adminController.getSamithiOverview);
 
+// Route to mark attendance for a specific volunteer at a specific event
+router.post('/events/:eventId/attendance', verifyToken, isAdmin, adminController.logVolunteerAttendance);
+
 module.exports = router;
