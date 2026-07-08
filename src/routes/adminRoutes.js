@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
-const { verifyToken } = require('../middlewares/authMiddleware');
+const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 
 // Route to publish a new structural seva event
 router.post('/events', verifyToken, isAdmin, adminController.createNewEvent);
