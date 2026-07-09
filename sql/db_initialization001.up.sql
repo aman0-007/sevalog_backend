@@ -51,7 +51,7 @@ CREATE TABLE users (
 
     -- System timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
     -- Active status for soft deletion
     is_active BOOLEAN DEFAULT TRUE
