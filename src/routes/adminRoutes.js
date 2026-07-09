@@ -6,6 +6,9 @@ const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 // Route to publish a new structural seva event
 router.post('/events', verifyToken, isAdmin, adminController.createNewEvent);
 
+// Route to view all published seva events
+router.get('/events', verifyToken, isAdmin, adminController.getAllEvents);
+
 // Route to view specific applied volunteer rosters and logs for an event
 router.get('/events/:eventId/report', verifyToken, isAdmin, adminController.getEventReport);
 

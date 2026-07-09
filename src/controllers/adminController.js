@@ -23,6 +23,18 @@ const adminController = {
     },
 
     /**
+     * Handler to view all Seva events/activities
+     */
+    getAllEvents: async (req, res, next) => {
+        try {
+            const events = await AdminModel.getAllEventsAdmin();
+            res.status(200).json({ data: events });
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    /**
      * Handler to compile a complete overview for a single event
      */
     getEventReport: async (req, res, next) => {

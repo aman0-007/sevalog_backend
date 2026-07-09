@@ -29,6 +29,21 @@ const AdminModel = {
     },
 
     /**
+     * View all Seva events/activities
+     */
+    getAllEventsAdmin: async () => {
+        const queryText = `
+            SELECT 
+                e.event_id, e.title, e.event_date, e.start_time, e.end_time, e.location_name, e.volunteers_needed,
+                (SELECT COUNT(*)::INT FROM event_applications WHERE event_id = e.event_id) AS current_registrations
+            FROM events e
+            ORDER BY e.event_date DESC;
+        `;
+        const { rows } = await db.query(queryText);
+        return rows;
+    },
+
+    /**
      * View complete details of an event, including its registration list and actual attendance records
      */
     getEventDetailsReport: async (eventId) => {
