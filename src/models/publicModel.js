@@ -8,7 +8,7 @@ const PublicModel = {
         const queryText = `
             SELECT 
                 event_id, title, description, event_date, start_time, end_time, 
-                location_name, location_address, google_maps_link
+                location_name, location_address, google_maps_link, volunteers_needed
             FROM events 
             WHERE event_date >= CURRENT_DATE
             ORDER BY event_date ASC
