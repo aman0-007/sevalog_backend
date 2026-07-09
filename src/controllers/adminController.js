@@ -68,6 +68,18 @@ const adminController = {
             next(error);
         }
     },
+
+    /**
+     * Handler to view all registered volunteers
+     */
+    getAllVolunteers: async (req, res, next) => {
+        try {
+            const volunteers = await AdminModel.getAllVolunteers();
+            res.status(200).json({ data: volunteers });
+        } catch (error) {
+            next(error);
+        }
+    },
     
     /**
      * Handler for marking attendance after an event

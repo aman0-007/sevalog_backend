@@ -94,6 +94,25 @@ const AdminModel = {
     },
 
     /**
+     * View all registered volunteers with their extended profile and total hours/events served
+     */
+    getAllVolunteers: async () => {
+        // This query grabs the user, joins their extended profile, and calculates their hours/events!
+        const queryText = `
+            SELECT 
+                u.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.role, u.created_at,
+                p.profession_or_college, p.city, p.skills, p.bio,
+                (SELECT COALESCE(SUM(hours_logged), 0)::INT FROM event_applications ea WHERE ea.user_id = u.user_id AND ea.attendance_status = 'attended') AS total_hours_served,
+                (SELECT COUNT(*)::INT FROM event_applications ea WHERE ea.user_id = u.user_id AND ea.attendance_status = 'attended') AS total_activities_count
+            FROM users u
+            LEFT JOIN volunteer_profiles p ON u.user_id = p.user_id
+            ORDER BY u.created_at DESC;
+        `;
+        const { rows } = await db.query(queryText);
+        return rows;
+    },
+
+    /**
      * Mark a volunteer's attendance and log their hours for an event
      */
     markAttendance: async (eventId, volunteerId, adminId, status, hoursLogged) => {

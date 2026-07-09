@@ -15,6 +15,9 @@ router.get('/events/:eventId/report', verifyToken, isAdmin, adminController.getE
 // Route to fetch quick high-level summary cards for the Samithi stats page
 router.get('/summary-stats', verifyToken, isAdmin, adminController.getSamithiOverview);
 
+// Route to view all registered volunteers
+router.get('/volunteers', verifyToken, isAdmin, adminController.getAllVolunteers);
+
 // Route to mark attendance for a specific volunteer at a specific event
 router.post('/events/:eventId/attendance', verifyToken, isAdmin, adminController.logVolunteerAttendance);
 
