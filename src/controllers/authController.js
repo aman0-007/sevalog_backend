@@ -40,7 +40,13 @@ const authController = {
             res.status(201).json({
                 message: 'Account created successfully',
                 token,
-                user: newUser
+                user: {
+                    userId: newUser.user_id,
+                    firstName: newUser.first_name,
+                    lastName: newUser.last_name,
+                    email: newUser.email,
+                    role: newUser.role
+                }
             });
 
         } catch (error) {

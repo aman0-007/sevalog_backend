@@ -8,7 +8,7 @@ const volunteerController = {
         try {
             // NOTE: In a complete system, req.user.id comes safely from an Auth Middleware decoding a JWT token.
             // For now, we will expect the user_id to be sent or mocked.
-            const userId = req.headers['x-user-id'] || req.body.userId; 
+            const userId = req.user.userId;
 
             if (!userId) {
                 return res.status(400).json({ error: 'User ID authentication identifier is missing.' });
