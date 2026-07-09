@@ -6,13 +6,19 @@ const adminController = {
      */
     createNewEvent: async (req, res, next) => {
         try {
-            const adminId = req.headers['x-admin-id']; // In production, derived securely from token check
+            const adminId = req.user.userId;
 
             if (!adminId) {
                 return res.status(403).json({ error: 'Access Denied: Admin authorization identity required.' });
             }
 
-            const newEvent = await AdminModel.createEvent(adminId, req.body);
+            // Combine the secure admin ID with the form data sent from the frontend
+            const eventPayload = {
+                ...req.body,
+                createdBy: adminId 
+            };
+
+            const newEvent = await AdminModel.createEvent(eventPayload);
             res.status(201).json({
                 message: 'Seva Event published successfully.',
                 data: newEvent
