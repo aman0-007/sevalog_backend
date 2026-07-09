@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -28,6 +29,10 @@ app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/volunteer', volunteerRoutes);
 app.use('/api/admin', adminRoutes);
+
+app.use((req, res) => {
+    res.status(404).sendFile(path.join(__dirname, '../404.html'));
+});
 
 // Global Error Handling Middleware (Catches unexpected runtime errors)
 app.use((err, req, res, next) => {
