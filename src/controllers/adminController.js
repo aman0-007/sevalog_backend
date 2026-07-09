@@ -12,13 +12,7 @@ const adminController = {
                 return res.status(403).json({ error: 'Access Denied: Admin authorization identity required.' });
             }
 
-            // Combine the secure admin ID with the form data sent from the frontend
-            const eventPayload = {
-                ...req.body,
-                createdBy: adminId 
-            };
-
-            const newEvent = await AdminModel.createEvent(eventPayload);
+            const newEvent = await AdminModel.createEvent(adminId, req.body);
             res.status(201).json({
                 message: 'Seva Event published successfully.',
                 data: newEvent
