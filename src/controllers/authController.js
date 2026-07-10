@@ -7,7 +7,7 @@ const generateToken = (user) => {
     return jwt.sign(
         { userId: user.user_id, role: user.role },
         process.env.JWT_SECRET,
-        { expiresIn: '7d' } // Token expires in 7 days
+        { expiresIn: '1d' } // Token expires in 1 day
     );
 };
 
@@ -20,10 +20,8 @@ const authController = {
             const { firstName, lastName, email, password, phoneNumber } = req.body;
 
             // 1. Check if user already exists
-            const existingUser = await AuthModel.getUserByEmail(email);
-            if (existingUser) {
-                return res.status(409).json({ error: 'An account with this email already exists.' });
-            }
+            const existingUser = await AuthModel.checkUserExists(email, phoneNumber);
+            if (existingUser) return res.status(409).json({ error: `An active account with this ${existingUser.email === email ? 'email' : 'phone number'} already exists.` });
 
             // 2. Hash the password (Salt rounds = 10)
             const salt = await bcrypt.genSalt(10);

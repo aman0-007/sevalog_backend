@@ -7,29 +7,45 @@ const VolunteerModel = {
     updateProfile: async (userId, profileData) => {
         const {
             firstName, lastName, phoneNumber, dateOfBirth, gender, bloodGroup,
-            residentialAddress, pincode, emergencyContactName, emergencyContactRelation,
-            emergencyContactNumber, medicalConditions, educationLevel, professionOrCollege,
-            skills, languagesSpoken
+            residentialAddress, city, state, pincode,
+            emergencyContactName, emergencyContactRelation, emergencyContactNumber, medicalConditions,
+            educationLevel, professionOrCollege,
+            skills, languagesSpoken, interestedActivities
         } = profileData;
 
         const queryText = `
             UPDATE users 
             SET 
-                first_name = $1, last_name = $2, phone_number = $3, date_of_birth = $4, 
-                gender = $5, blood_group = $6, residential_address = $7, pincode = $8, 
-                emergency_contact_name = $9, emergency_contact_relation = $10, 
-                emergency_contact_number = $11, medical_conditions = $12, 
-                education_level = $13, profession_or_college = $14, 
-                skills = $15, languages_spoken = $16
-            WHERE user_id = $17 AND role = 'volunteer'
+                first_name = $1, 
+                last_name = $2, 
+                phone_number = $3, 
+                date_of_birth = $4, 
+                gender = $5, 
+                blood_group = $6, 
+                residential_address = $7, 
+                city = COALESCE($8, city), 
+                state = COALESCE($9, state), 
+                pincode = $10, 
+                emergency_contact_name = $11, 
+                emergency_contact_relation = $12, 
+                emergency_contact_number = $13, 
+                medical_conditions = $14, 
+                education_level = $15, 
+                profession_or_college = $16, 
+                skills = $17, 
+                languages_spoken = $18, 
+                interested_activities = $19,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $20 AND role = 'volunteer' AND is_active = TRUE
             RETURNING user_id, first_name, last_name, email;
         `;
 
         const values = [
             firstName, lastName, phoneNumber, dateOfBirth, gender, bloodGroup,
-            residentialAddress, pincode, emergencyContactName, emergencyContactRelation,
-            emergencyContactNumber, medicalConditions, educationLevel, professionOrCollege,
-            skills, languagesSpoken, userId
+            residentialAddress, city, state, pincode, emergencyContactName, 
+            emergencyContactRelation, emergencyContactNumber, medicalConditions, 
+            educationLevel, professionOrCollege, skills, languagesSpoken, 
+            interestedActivities, userId
         ];
 
         const { rows } = await db.query(queryText, values);
