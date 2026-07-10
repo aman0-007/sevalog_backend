@@ -6,22 +6,25 @@ const AdminModel = {
      */
     createEvent: async (adminId, eventData) => {
         const {
-            title, description, eventDate, startTime, endTime,
-            locationName, locationAddress, googleMapsLink, volunteersNeeded, skillsRequired
+            title, description, category, eventDate, startTime, endTime,
+            locationName, locationAddress, googleMapsLink, 
+            contactPersonName, contactPersonPhone, volunteersNeeded
         } = eventData;
 
         const queryText = `
             INSERT INTO events (
-                created_by, title, description, event_date, start_time, end_time,
-                location_name, location_address, google_maps_link, volunteers_needed, skills_required
+                created_by, title, description, category, event_date, start_time, end_time,
+                location_name, location_address, google_maps_link, 
+                contact_person_name, contact_person_phone, volunteers_needed
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING event_id, title, event_date, volunteers_needed;
         `;
 
         const values = [
-            adminId, title, description, eventDate, startTime, endTime,
-            locationName, locationAddress, googleMapsLink, volunteersNeeded, skillsRequired
+            adminId, title, description, category, eventDate, startTime, endTime,
+            locationName, locationAddress, googleMapsLink, 
+            contactPersonName, contactPersonPhone, volunteersNeeded
         ];
 
         const { rows } = await db.query(queryText, values);
@@ -49,13 +52,13 @@ const AdminModel = {
      * View complete details of an event, including its registration list and actual attendance records
      */
     getEventDetailsReport: async (eventId) => {
-        // 1. Fetch the main event criteria
+        // 1. Fetch the main event criteria (This automatically pulls all your new schema fields)
         const eventQuery = `SELECT * FROM events WHERE event_id = $1;`;
         const eventResult = await db.query(eventQuery, [eventId]);
         
         if (eventResult.rows.length === 0) return null;
 
-        // 2. Fetch all volunteers who applied alongside their application status and attendance record
+        // 2. Fetch all volunteers directly from attendance (event_applications table is gone)
         const volunteersQuery = `
             SELECT 
                 u.user_id,
@@ -63,7 +66,6 @@ const AdminModel = {
                 u.last_name,
                 u.email,
                 u.phone_number,
-                ea.status AS application_status,
                 att.created_at AS applied_at,
                 att.status AS attendance_status,
                 att.hours_logged
