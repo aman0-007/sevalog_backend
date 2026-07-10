@@ -8,7 +8,7 @@ CREATE DATABASE chembur_samithi_seva;
 -- ==========================================
 
 CREATE TYPE user_role AS ENUM ('admin', 'volunteer');
-CREATE TYPE attendance_status AS ENUM ('present', 'absent');
+CREATE TYPE attendance_status AS ENUM ('registered', 'withdrawn','present', 'absent');
 CREATE TYPE blood_group_type AS ENUM ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-');
 
 -- ==========================================

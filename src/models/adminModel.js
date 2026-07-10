@@ -35,7 +35,9 @@ const AdminModel = {
         const queryText = `
             SELECT 
                 e.event_id, e.title, e.event_date, e.start_time, e.end_time, e.location_name, e.volunteers_needed,
-                (SELECT COUNT(*)::INT FROM event_applications WHERE event_id = e.event_id) AS current_registrations
+                (SELECT COUNT(*)::INT
+                FROM attendance
+                WHERE event_id = e.event_id AND status != 'withdrawn') AS current_registrations
             FROM events e
             ORDER BY e.event_date DESC;
         `;
@@ -62,14 +64,13 @@ const AdminModel = {
                 u.email,
                 u.phone_number,
                 ea.status AS application_status,
-                ea.applied_at,
+                att.created_at AS applied_at,
                 att.status AS attendance_status,
                 att.hours_logged
-            FROM event_applications ea
-            JOIN users u ON ea.volunteer_id = u.user_id
-            LEFT JOIN attendance att ON ea.event_id = att.event_id AND ea.volunteer_id = att.volunteer_id
-            WHERE ea.event_id = $1
-            ORDER BY ea.applied_at ASC;
+            FROM attendance att
+            JOIN users u ON att.volunteer_id = u.user_id
+            WHERE att.event_id = $1
+            ORDER BY att.created_at ASC;
         `;
         const volunteersResult = await db.query(volunteersQuery, [eventId]);
 

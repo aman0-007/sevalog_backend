@@ -91,9 +91,9 @@ const VolunteerModel = {
      */
     applyForEvent: async (userId, eventId) => {
         const queryText = `
-            INSERT INTO event_applications (event_id, volunteer_id, status)
-            VALUES ($1, $2, 'pending')
-            RETURNING application_id, status, applied_at;
+            INSERT INTO attendance (event_id, volunteer_id, status, hours_logged)
+            VALUES ($1, $2, 'registered', 0.00)
+            RETURNING attendance_id, status, created_at AS applied_at;
         `;
         const { rows } = await db.query(queryText, [eventId, userId]);
         return rows[0];
