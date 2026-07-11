@@ -91,7 +91,25 @@ const volunteerController = {
             }
             next(error); // Passes capacity trigger errors (from our database trigger) to the frontend
         }
-    }
+    },
+
+    /**
+     * Handler to fetch all events for the My Events page
+     */
+    getAllEventsList: async (req, res, next) => {
+        try {
+            const userId = req.user.userId;
+            
+            if (!userId) {
+                return res.status(401).json({ error: 'Unauthorized user context.' });
+            }
+
+            const events = await VolunteerModel.getAllEventsWithUserStatus(userId);
+            res.status(200).json({ data: events });
+        } catch (error) {
+            next(error);
+        }
+    },
 };
 
 module.exports = volunteerController;

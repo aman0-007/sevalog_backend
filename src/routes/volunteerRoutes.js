@@ -12,4 +12,6 @@ router.get('/dashboard', verifyToken, volunteerController.getMyDashboard);
 router.get('/events', verifyToken, volunteerController.getEvents);
 router.post('/apply', verifyToken, volunteerController.applyToEvent);
 
+// Route to get all events (past and future) with the user's specific status
+router.get('/events/all', verifyToken, volunteerController.getAllEventsList);
 module.exports = router;

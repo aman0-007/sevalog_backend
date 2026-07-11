@@ -100,6 +100,23 @@ const VolunteerModel = {
         `;
         const { rows } = await db.query(queryText, [eventId, userId]);
         return rows[0];
+    },
+
+    /**
+     * Get ALL events (past and future) using the view, along with the user's specific status
+     */
+    getAllEventsWithUserStatus: async (userId) => {
+        const queryText = `
+            SELECT 
+                e.event_id, e.title, e.description, e.event_date, e.start_time, e.end_time, 
+                e.location_name, e.volunteers_needed, e.event_status,
+                a.status AS user_status, a.hours_logged
+            FROM events_with_status e
+            LEFT JOIN attendance a ON e.event_id = a.event_id AND a.volunteer_id = $1
+            ORDER BY e.event_date ASC, e.start_time ASC;
+        `;
+        const { rows } = await db.query(queryText, [userId]);
+        return rows;
     }
 };
 
