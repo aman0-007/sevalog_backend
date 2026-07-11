@@ -80,6 +80,24 @@ const adminController = {
             next(error);
         }
     },
+
+    /**
+     * Handler to view a single volunteer's full profile
+     */
+    getVolunteerProfile: async (req, res, next) => {
+        try {
+            const { userId } = req.params;
+            const profile = await AdminModel.getVolunteerDetails(userId);
+            
+            if (!profile) {
+                return res.status(404).json({ error: 'Volunteer not found.' });
+            }
+
+            res.status(200).json({ data: profile });
+        } catch (error) {
+            next(error);
+        }
+    },
     
     /**
      * Handler for marking attendance after an event

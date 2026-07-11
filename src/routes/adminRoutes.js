@@ -18,6 +18,9 @@ router.get('/summary-stats', verifyToken, isAdmin, adminController.getSamithiOve
 // Route to view all registered volunteers
 router.get('/volunteers', verifyToken, isAdmin, adminController.getAllVolunteers);
 
+// Route to view a single volunteer's full profile
+router.get('/volunteers/:userId', verifyToken, isAdmin, adminController.getVolunteerProfile);
+
 // Route to mark attendance for a specific volunteer at a specific event
 router.post('/events/:eventId/attendance', verifyToken, isAdmin, adminController.logVolunteerAttendance);
 

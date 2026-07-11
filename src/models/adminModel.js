@@ -97,22 +97,40 @@ const AdminModel = {
     },
 
     /**
-     * View all registered volunteers with their extended profile and total hours/events served
+     * View all registered volunteers (Lightweight for Table)
      */
     getAllVolunteers: async () => {
         const queryText = `
             SELECT 
-                u.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.role, u.created_at,
-                u.profession_or_college, u.city, u.skills, 
-                -- u.bio, <-- Commented out until you run the ALTER TABLE later!
-                COALESCE(vsc.total_hours_logged, 0) AS total_hours_served,
-                COALESCE(vsc.total_activities_attended, 0) AS total_activities_count
+                u.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.role, u.city, u.created_at,
+                COALESCE(vsc.total_hours_logged, 0) AS total_hours_served
             FROM users u
             LEFT JOIN volunteer_stats_cache vsc ON u.user_id = vsc.volunteer_id
             ORDER BY u.created_at DESC;
         `;
         const { rows } = await db.query(queryText);
         return rows;
+    },
+
+    /**
+     * View a single volunteer's comprehensive profile
+     */
+    getVolunteerDetails: async (userId) => {
+        const queryText = `
+            SELECT 
+                u.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.role, 
+                u.date_of_birth, u.gender, u.blood_group, u.residential_address, u.city, u.state, u.pincode,
+                u.emergency_contact_name, u.emergency_contact_relation, u.emergency_contact_number,
+                u.medical_conditions, u.education_level, u.profession_or_college, 
+                u.skills, u.languages_spoken, u.interested_activities, u.created_at, u.is_active,
+                COALESCE(vsc.total_hours_logged, 0) AS total_hours_served,
+                COALESCE(vsc.total_activities_attended, 0) AS total_activities_count
+            FROM users u
+            LEFT JOIN volunteer_stats_cache vsc ON u.user_id = vsc.volunteer_id
+            WHERE u.user_id = $1;
+        `;
+        const { rows } = await db.query(queryText, [userId]);
+        return rows[0];
     },
 
     /**
