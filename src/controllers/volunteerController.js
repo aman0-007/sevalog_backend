@@ -110,6 +110,22 @@ const volunteerController = {
             next(error);
         }
     },
+
+    /**
+     * Handler to get the volunteer's own profile
+     */
+    getMyProfile: async (req, res, next) => {
+        try {
+            const userId = req.user.userId;
+            const profile = await VolunteerModel.getProfile(userId);
+            
+            if (!profile) return res.status(404).json({ error: 'Profile not found.' });
+            
+            res.status(200).json({ data: profile });
+        } catch (error) {
+            next(error);
+        }
+    },
 };
 
 module.exports = volunteerController;

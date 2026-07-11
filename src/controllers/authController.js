@@ -90,6 +90,35 @@ const authController = {
         } catch (error) {
             next(error);
         }
+    },
+
+    /**
+     * Handle password change for logged-in users
+     */
+    changePassword: async (req, res, next) => {
+        try {
+            const userId = req.user.userId;
+            const { currentPassword, newPassword } = req.body;
+
+            const user = await AuthModel.getUserById(userId);
+            if (!user) return res.status(404).json({ error: 'User not found.' });
+
+            // Verify current password
+            const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+            if (!isValidPassword) {
+                return res.status(401).json({ error: 'Incorrect current password.' });
+            }
+
+            // Hash new password
+            const salt = await bcrypt.genSalt(10);
+            const passwordHash = await bcrypt.hash(newPassword, salt);
+
+            await AuthModel.updatePassword(userId, passwordHash);
+
+            res.status(200).json({ message: 'Password updated successfully.' });
+        } catch (error) {
+            next(error);
+        }
     }
 };
 

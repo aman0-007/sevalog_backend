@@ -14,4 +14,7 @@ router.post('/apply', verifyToken, volunteerController.applyToEvent);
 
 // Route to get all events (past and future) with the user's specific status
 router.get('/events/all', verifyToken, volunteerController.getAllEventsList);
+
+// Route to get the volunteer's profile data
+router.get('/profile', verifyToken, volunteerController.getMyProfile);
 module.exports = router;

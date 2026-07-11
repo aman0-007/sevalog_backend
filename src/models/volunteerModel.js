@@ -120,7 +120,24 @@ const VolunteerModel = {
         `;
         const { rows } = await db.query(queryText, [userId]);
         return rows;
-    }
+    },
+
+    /**
+     * Get a volunteer's current profile data
+     */
+    getProfile: async (userId) => {
+        const queryText = `
+            SELECT 
+                first_name, last_name, email, phone_number, date_of_birth, gender, blood_group,
+                residential_address, city, state, pincode,
+                emergency_contact_name, emergency_contact_relation, emergency_contact_number, medical_conditions,
+                education_level, profession_or_college, skills, languages_spoken, interested_activities
+            FROM users 
+            WHERE user_id = $1 AND role = 'volunteer' AND is_active = TRUE;
+        `;
+        const { rows } = await db.query(queryText, [userId]);
+        return rows[0];
+    },
 };
 
 module.exports = VolunteerModel;

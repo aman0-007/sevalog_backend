@@ -42,6 +42,23 @@ const AuthModel = {
         const values = [firstName, lastName, email, passwordHash, phoneNumber];
         const { rows } = await db.query(queryText, values);
         return rows[0];
+    },
+
+    /**
+     * Get user by ID (Needed to verify old password)
+     */
+    getUserById: async (userId) => {
+        const queryText = `SELECT * FROM users WHERE user_id = $1 AND is_active = TRUE;`;
+        const { rows } = await db.query(queryText, [userId]);
+        return rows[0];
+    },
+
+    /**
+     * Update user password
+     */
+    updatePassword: async (userId, passwordHash) => {
+        const queryText = `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2;`;
+        await db.query(queryText, [passwordHash, userId]);
     }
 };
 
