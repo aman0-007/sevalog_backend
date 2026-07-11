@@ -52,7 +52,13 @@ const volunteerController = {
      */
     getEvents: async (req, res, next) => {
         try {
-            const events = await VolunteerModel.getUpcomingEvents();
+            const userId = req.user.userId; // Get user ID from the auth token
+            
+            if (!userId) {
+                return res.status(401).json({ error: 'Unauthorized user context.' });
+            }
+
+            const events = await VolunteerModel.getUpcomingEvents(userId);
             res.status(200).json({ data: events });
         } catch (error) {
             next(error);

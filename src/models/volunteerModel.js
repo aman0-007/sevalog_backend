@@ -72,17 +72,20 @@ const VolunteerModel = {
     },
 
     /**
-     * Get all upcoming events that the volunteer can apply for
+     * Get all upcoming events and check if the current user has already registered
      */
-    getUpcomingEvents: async () => {
+    getUpcomingEvents: async (userId) => {
         const queryText = `
-            SELECT event_id, title, description, event_date, start_time, end_time, 
-                   location_name, volunteers_needed 
-            FROM events 
-            WHERE event_date >= CURRENT_DATE
-            ORDER BY event_date ASC;
+            SELECT 
+                e.event_id, e.title, e.description, e.event_date, e.start_time, e.end_time, 
+                e.location_name, e.volunteers_needed,
+                a.status AS user_status
+            FROM events e
+            LEFT JOIN attendance a ON e.event_id = a.event_id AND a.volunteer_id = $1
+            WHERE e.event_date >= CURRENT_DATE
+            ORDER BY e.event_date ASC;
         `;
-        const { rows } = await db.query(queryText);
+        const { rows } = await db.query(queryText, [userId]);
         return rows;
     },
 
