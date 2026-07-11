@@ -34,7 +34,7 @@ const volunteerController = {
      */
     getMyDashboard: async (req, res, next) => {
         try {
-            const userId = req.headers['x-user-id'] || req.query.userId;
+            const userId = req.user.userId;
 
             if (!userId) {
                 return res.status(400).json({ error: 'User ID authentication identifier is missing.' });
