@@ -108,8 +108,11 @@ const VolunteerModel = {
     getAllEventsWithUserStatus: async (userId) => {
         const queryText = `
             SELECT 
-                e.event_id, e.title, e.description, e.event_date, e.start_time, e.end_time, 
-                e.location_name, e.volunteers_needed, e.event_status,
+                e.event_id, e.title, e.description, e.category, 
+                e.event_date, e.start_time, e.end_time, 
+                e.location_name, e.location_address, e.google_maps_link, 
+                e.contact_person_name, e.contact_person_phone, 
+                e.volunteers_needed, e.event_status,
                 a.status AS user_status, a.hours_logged
             FROM events_with_status e
             LEFT JOIN attendance a ON e.event_id = a.event_id AND a.volunteer_id = $1
