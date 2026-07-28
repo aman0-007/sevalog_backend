@@ -72,57 +72,6 @@ const VolunteerModel = {
     },
 
     /**
-     * Get all upcoming events and check if the current user has already registered
-     */
-    getUpcomingEvents: async (userId) => {
-        const queryText = `
-            SELECT 
-                e.event_id, e.title, e.description, e.event_date, e.start_time, e.end_time, 
-                e.location_name, e.volunteers_needed,
-                a.status AS user_status
-            FROM events e
-            LEFT JOIN attendance a ON e.event_id = a.event_id AND a.volunteer_id = $1
-            WHERE e.event_date >= CURRENT_DATE
-            ORDER BY e.event_date ASC;
-        `;
-        const { rows } = await db.query(queryText, [userId]);
-        return rows;
-    },
-
-    /**
-     * Apply for a specific event
-     */
-    applyForEvent: async (userId, eventId) => {
-        const queryText = `
-            INSERT INTO attendance (event_id, volunteer_id, status, hours_logged)
-            VALUES ($1, $2, 'registered', 0.00)
-            RETURNING attendance_id, status, created_at AS applied_at;
-        `;
-        const { rows } = await db.query(queryText, [eventId, userId]);
-        return rows[0];
-    },
-
-    /**
-     * Get ALL events (past and future) using the view, along with the user's specific status
-     */
-    getAllEventsWithUserStatus: async (userId) => {
-        const queryText = `
-            SELECT 
-                e.event_id, e.title, e.description, e.category, 
-                e.event_date, e.start_time, e.end_time, 
-                e.location_name, e.location_address, e.google_maps_link, 
-                e.contact_person_name, e.contact_person_phone, 
-                e.volunteers_needed, e.event_status,
-                a.status AS user_status, a.hours_logged
-            FROM events_with_status e
-            LEFT JOIN attendance a ON e.event_id = a.event_id AND a.volunteer_id = $1
-            ORDER BY e.event_date ASC, e.start_time ASC;
-        `;
-        const { rows } = await db.query(queryText, [userId]);
-        return rows;
-    },
-
-    /**
      * Get a volunteer's current profile data
      */
     getProfile: async (userId) => {
