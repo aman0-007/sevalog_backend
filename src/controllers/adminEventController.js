@@ -176,7 +176,7 @@ const AdminEventController = {
 
             // 1. Fetch event details to validate timing and status
             const eventResult = await db.query(
-                `SELECT event_date, start_time, end_time, status 
+                `SELECT TO_CHAR(event_date, 'YYYY-MM-DD') AS formatted_date, start_time, end_time, status 
                  FROM events 
                  WHERE event_id = $1`,
                 [eventId]
@@ -201,9 +201,8 @@ const AdminEventController = {
             
             // Format DB dates/times into usable JavaScript Date objects
             // Extract YYYY-MM-DD to avoid timezone shifting issues
-            const dateString = new Date(event.event_date).toISOString().split('T')[0]; 
-            const eventStartTime = new Date(`${dateString}T${event.start_time}`);
-            const eventEndTime = new Date(`${dateString}T${event.end_time}`);
+            const eventStartTime = new Date(`${event.formatted_date}T${event.start_time}`);
+            const eventEndTime = new Date(`${event.formatted_date}T${event.end_time}`);
 
             // Allowed generation starts 30 minutes before the start time
             const allowedStartTime = new Date(eventStartTime.getTime() - (30 * 60 * 1000));
