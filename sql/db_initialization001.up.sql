@@ -74,7 +74,15 @@ CREATE TABLE users (
     medical_conditions TEXT,
 
     education_level VARCHAR(100),
-    profession_or_college VARCHAR(150),
+    
+    college_name VARCHAR(150),
+    profession VARCHAR(150),
+
+    CONSTRAINT chk_college_or_profession
+        CHECK (
+            college_name IS NOT NULL
+            OR profession IS NOT NULL
+        ),
 
     -- Multi-value fields
     skills TEXT[],
@@ -121,12 +129,11 @@ CREATE TABLE events (
     min_volunteers INTEGER DEFAULT 1,
     max_volunteers INTEGER,
 
-    waitlist_enabled BOOLEAN DEFAULT FALSE,
-    auto_close_registration BOOLEAN DEFAULT TRUE,
-
-    is_recurring BOOLEAN DEFAULT FALSE,
-    recurrence_pattern VARCHAR(50),
-    recurrence_end_date DATE,
+    CONSTRAINT chk_volunteer_limits
+        CHECK (
+            max_volunteers IS NULL
+            OR max_volunteers >= min_volunteers
+        ),
 
     location_name VARCHAR(150) NOT NULL,
     location_address TEXT NOT NULL,
@@ -134,8 +141,6 @@ CREATE TABLE events (
 
     contact_person_name VARCHAR(100),
     contact_person_phone VARCHAR(20),
-
-    banner_image_url TEXT,
 
     qr_code_token VARCHAR(255) UNIQUE,
     qr_expiry TIMESTAMP WITH TIME ZONE,
@@ -151,7 +156,13 @@ CREATE TABLE events (
         DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT chk_time_order
-        CHECK (end_time > start_time)
+        CHECK (end_time > start_time),
+
+    CONSTRAINT chk_registration_deadline
+        CHECK (
+            registration_deadline IS NULL
+            OR registration_deadline <= (event_date + end_time)
+        )
 );
 
 -- ATTENDANCE
@@ -172,9 +183,6 @@ CREATE TABLE attendance (
         ON DELETE SET NULL,
 
     status attendance_status NOT NULL,
-
-    attendance_method VARCHAR(50)
-        DEFAULT 'manual',
 
     check_in_time TIMESTAMP WITH TIME ZONE,
     check_out_time TIMESTAMP WITH TIME ZONE,
@@ -218,73 +226,6 @@ CREATE TABLE event_timeline (
         DEFAULT CURRENT_TIMESTAMP
 );
 
--- AUDIT LOGS
-CREATE TABLE audit_logs (
-    log_id UUID PRIMARY KEY
-        DEFAULT gen_random_uuid(),
-
-    user_id UUID
-        REFERENCES users(user_id)
-        ON DELETE SET NULL,
-
-    action VARCHAR(50) NOT NULL,
-    table_name VARCHAR(50) NOT NULL,
-    record_id UUID NOT NULL,
-
-    old_values JSONB,
-    new_values JSONB,
-
-    timestamp TIMESTAMP WITH TIME ZONE
-        DEFAULT CURRENT_TIMESTAMP
-);
-
--- VOLUNTEER STATS CACHE
-CREATE TABLE volunteer_stats_cache (
-    volunteer_id UUID PRIMARY KEY
-        REFERENCES users(user_id)
-        ON DELETE CASCADE,
-
-    total_hours_logged NUMERIC(7,2)
-        DEFAULT 0.00,
-
-    total_activities_attended INTEGER
-        DEFAULT 0,
-
-    last_updated TIMESTAMP WITH TIME ZONE
-        DEFAULT CURRENT_TIMESTAMP
-);
-
--- ADMIN DASHBOARD CACHE
-CREATE TABLE admin_dashboard_cache (
-    id INTEGER PRIMARY KEY
-        DEFAULT 1
-        CHECK (id = 1),
-
-    total_events INTEGER
-        DEFAULT 0,
-
-    upcoming_events INTEGER
-        DEFAULT 0,
-
-    ongoing_events INTEGER
-        DEFAULT 0,
-
-    completed_events INTEGER
-        DEFAULT 0,
-
-    total_volunteers INTEGER
-        DEFAULT 0,
-
-    active_volunteers INTEGER
-        DEFAULT 0,
-
-    total_hours_logged NUMERIC(10,2)
-        DEFAULT 0.00,
-
-    last_updated TIMESTAMP WITH TIME ZONE
-        DEFAULT CURRENT_TIMESTAMP
-);
-
 -- INDEXES
 CREATE INDEX idx_events_date
     ON events(event_date);
@@ -303,9 +244,6 @@ CREATE INDEX idx_attendance_volunteer
 
 CREATE INDEX idx_attendance_status
     ON attendance(status);
-
-CREATE INDEX idx_audit_logs_record
-    ON audit_logs(record_id);
 
 -- VIEWS
 CREATE VIEW active_events_view AS
@@ -404,322 +342,6 @@ BEFORE INSERT OR UPDATE OF check_in_time, check_out_time
 ON attendance
 FOR EACH ROW
 EXECUTE FUNCTION calculate_attendance_hours();
-
--- REFRESH VOLUNTEER STATS CACHE
-CREATE OR REPLACE FUNCTION update_volunteer_stats_cache()
-RETURNS TRIGGER AS
-$$
-DECLARE
-    target_volunteer UUID;
-BEGIN
-
-    IF TG_OP = 'DELETE' THEN
-        target_volunteer := OLD.volunteer_id;
-    ELSE
-        target_volunteer := NEW.volunteer_id;
-    END IF;
-
-    INSERT INTO volunteer_stats_cache
-    (
-        volunteer_id,
-        total_hours_logged,
-        total_activities_attended,
-        last_updated
-    )
-
-    SELECT
-        target_volunteer,
-        COALESCE(SUM(hours_logged),0),
-        COUNT(attendance_id)
-            FILTER (WHERE status='present'),
-        CURRENT_TIMESTAMP
-
-    FROM attendance
-    WHERE volunteer_id = target_volunteer
-
-    ON CONFLICT (volunteer_id)
-    DO UPDATE
-    SET
-        total_hours_logged = EXCLUDED.total_hours_logged,
-        total_activities_attended = EXCLUDED.total_activities_attended,
-        last_updated = EXCLUDED.last_updated;
-
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER refresh_volunteer_cache
-AFTER INSERT OR UPDATE OR DELETE
-ON attendance
-FOR EACH ROW
-EXECUTE FUNCTION update_volunteer_stats_cache();
-
--- AUTO CLOSE EVENT REGISTRATION
-CREATE OR REPLACE FUNCTION enforce_auto_close_registration()
-RETURNS TRIGGER AS
-$$
-DECLARE
-    current_count INTEGER;
-    maximum_capacity INTEGER;
-    auto_close BOOLEAN;
-BEGIN
-
-    SELECT
-        max_volunteers,
-        auto_close_registration
-    INTO
-        maximum_capacity,
-        auto_close
-    FROM events
-    WHERE event_id = NEW.event_id;
-
-    IF auto_close IS DISTINCT FROM TRUE THEN
-        RETURN NEW;
-    END IF;
-
-    SELECT COUNT(*)
-    INTO current_count
-    FROM attendance
-    WHERE event_id = NEW.event_id
-      AND status IN ('registered','present');
-
-    IF maximum_capacity IS NOT NULL
-       AND current_count >= maximum_capacity THEN
-
-        UPDATE events
-        SET
-            registration_open = FALSE,
-            status = 'registration_closed'
-        WHERE event_id = NEW.event_id;
-
-        INSERT INTO event_timeline
-        (
-            event_id,
-            action
-        )
-        VALUES
-        (
-            NEW.event_id,
-            'Registration automatically closed (Capacity Reached)'
-        );
-
-    END IF;
-
-    RETURN NEW;
-END;
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_auto_close_registration
-AFTER INSERT
-ON attendance
-FOR EACH ROW
-WHEN (NEW.status = 'registered')
-EXECUTE FUNCTION enforce_auto_close_registration();
-
--- REFRESH ADMIN DASHBOARD CACHE
-CREATE OR REPLACE FUNCTION refresh_admin_dashboard_cache()
-RETURNS TRIGGER AS
-$$
-BEGIN
-
-    INSERT INTO admin_dashboard_cache
-    (
-        id,
-        total_events,
-        upcoming_events,
-        ongoing_events,
-        completed_events,
-        total_volunteers,
-        active_volunteers,
-        total_hours_logged,
-        last_updated
-    )
-
-    VALUES
-    (
-        1,
-
-        (
-            SELECT COUNT(*)
-            FROM events
-            WHERE is_deleted = FALSE
-        ),
-
-        (
-            SELECT COUNT(*)
-            FROM events
-            WHERE status = 'upcoming'
-            AND is_deleted = FALSE
-        ),
-
-        (
-            SELECT COUNT(*)
-            FROM events
-            WHERE status = 'ongoing'
-            AND is_deleted = FALSE
-        ),
-
-        (
-            SELECT COUNT(*)
-            FROM events
-            WHERE status = 'completed'
-            AND is_deleted = FALSE
-        ),
-
-        (
-            SELECT COUNT(*)
-            FROM users
-            WHERE role = 'volunteer'
-        ),
-
-        (
-            SELECT COUNT(*)
-            FROM users
-            WHERE role = 'volunteer'
-            AND is_active = TRUE
-        ),
-
-        (
-            SELECT COALESCE(SUM(hours_logged),0)
-            FROM attendance
-        ),
-
-        CURRENT_TIMESTAMP
-    )
-
-    ON CONFLICT (id)
-    DO UPDATE
-    SET
-        total_events = EXCLUDED.total_events,
-        upcoming_events = EXCLUDED.upcoming_events,
-        ongoing_events = EXCLUDED.ongoing_events,
-        completed_events = EXCLUDED.completed_events,
-        total_volunteers = EXCLUDED.total_volunteers,
-        active_volunteers = EXCLUDED.active_volunteers,
-        total_hours_logged = EXCLUDED.total_hours_logged,
-        last_updated = EXCLUDED.last_updated;
-
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_dashboard_events
-AFTER INSERT OR UPDATE OR DELETE
-ON events
-FOR EACH STATEMENT
-EXECUTE FUNCTION refresh_admin_dashboard_cache();
-
-CREATE TRIGGER trigger_dashboard_users
-AFTER INSERT OR UPDATE OR DELETE
-ON users
-FOR EACH STATEMENT
-EXECUTE FUNCTION refresh_admin_dashboard_cache();
-
-CREATE TRIGGER trigger_dashboard_attendance
-AFTER INSERT OR UPDATE OR DELETE
-ON attendance
-FOR EACH STATEMENT
-EXECUTE FUNCTION refresh_admin_dashboard_cache();
-
--- AUDIT FUNCTION
-CREATE OR REPLACE FUNCTION audit_trigger()
-RETURNS TRIGGER AS
-$$
-BEGIN
-
-    IF TG_OP = 'INSERT' THEN
-
-        INSERT INTO audit_logs
-        (
-            action,
-            table_name,
-            record_id,
-            new_values,
-            timestamp
-        )
-        VALUES
-        (
-            TG_OP,
-            TG_TABLE_NAME,
-            (to_jsonb(NEW)->>TG_ARGV[0])::UUID,
-            to_jsonb(NEW),
-            CURRENT_TIMESTAMP
-        );
-
-        RETURN NEW;
-
-    ELSIF TG_OP = 'UPDATE' THEN
-
-        INSERT INTO audit_logs
-        (
-            action,
-            table_name,
-            record_id,
-            old_values,
-            new_values,
-            timestamp
-        )
-        VALUES
-        (
-            TG_OP,
-            TG_TABLE_NAME,
-            (to_jsonb(NEW)->>TG_ARGV[0])::UUID,
-            to_jsonb(OLD),
-            to_jsonb(NEW),
-            CURRENT_TIMESTAMP
-        );
-
-        RETURN NEW;
-
-    ELSIF TG_OP = 'DELETE' THEN
-
-        INSERT INTO audit_logs
-        (
-            action,
-            table_name,
-            record_id,
-            old_values,
-            timestamp
-        )
-        VALUES
-        (
-            TG_OP,
-            TG_TABLE_NAME,
-            (to_jsonb(OLD)->>TG_ARGV[0])::UUID,
-            to_jsonb(OLD),
-            CURRENT_TIMESTAMP
-        );
-
-        RETURN OLD;
-
-    END IF;
-
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-
--- AUDIT TRIGGERS
-CREATE TRIGGER audit_users
-AFTER INSERT OR UPDATE OR DELETE
-ON users
-FOR EACH ROW
-EXECUTE FUNCTION audit_trigger('user_id');
-
-CREATE TRIGGER audit_events
-AFTER INSERT OR UPDATE OR DELETE
-ON events
-FOR EACH ROW
-EXECUTE FUNCTION audit_trigger('event_id');
-
-CREATE TRIGGER audit_attendance
-AFTER INSERT OR UPDATE OR DELETE
-ON attendance
-FOR EACH ROW
-EXECUTE FUNCTION audit_trigger('attendance_id');
 
 -- =====================================================
 -- END OF SCHEMA
