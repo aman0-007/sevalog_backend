@@ -74,9 +74,9 @@ const VolunteerEventModel = {
             // 4. Insert or Update (Upsert to handle previous withdrawals)
             const upsertQuery = `
                 INSERT INTO attendance (event_id, volunteer_id, status, attendance_method)
-                VALUES ($1, $2, $3, 'qr_scan')
+                VALUES ($1, $2, $3, 'app')
                 ON CONFLICT (event_id, volunteer_id) 
-                DO UPDATE SET status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP
+                DO UPDATE SET status = EXCLUDED.status
                 RETURNING *;
             `;
             const { rows: attRows } = await client.query(upsertQuery, [eventId, userId, newStatus]);
@@ -114,8 +114,10 @@ const VolunteerEventModel = {
                 e.event_id, e.title, 
                 TO_CHAR(e.event_date, 'YYYY-MM-DD') AS event_date, 
                 e.start_time, e.end_time,
-                e.location_name, e.category, e.banner_image_url, e.status AS event_status,
-                e.max_volunteers, e.registration_open,
+                e.location_name, e.location_address, e.google_maps_link,
+                e.contact_person_name, e.contact_person_phone, e.description, 
+                e.category, e.banner_image_url, e.status AS event_status,
+                e.max_volunteers, e.registration_open, e.registration_deadline,
                 COALESCE(att_counts.reg_count, 0)::integer AS current_registrations,
                 user_att.status AS user_registration_status,
                 user_att.check_in_time
