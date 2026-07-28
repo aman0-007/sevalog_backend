@@ -3,6 +3,394 @@ const db = require('../config/db');
 const AdminEventModel = require('../models/adminEventModel');
 
 const AdminEventController = {
+
+    /**
+     * Create an event with inline business validation rules
+     */
+    createNewSystemEvent: async (req, res) => {
+        try {
+            const {
+                title,
+                event_date,
+                start_time,
+                end_time,
+                location_name,
+                location_address,
+                volunteers_needed,
+                min_volunteers,
+                max_volunteers,
+                registration_deadline
+            } = req.body;
+
+            const adminId = req.user.userId;
+
+            if (
+                !title ||
+                !event_date ||
+                !start_time ||
+                !end_time ||
+                !location_name ||
+                !location_address ||
+                !volunteers_needed
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Required fields are missing."
+                });
+            }
+
+            const eventDate = new Date(event_date);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            if (eventDate < today) {
+                return res.status(400).json({
+                    success:false,
+                    message:"Event date cannot be in the past."
+                });
+            }
+
+            if (start_time >= end_time) {
+                return res.status(400).json({
+                    success:false,
+                    message:"End time must be after start time."
+                });
+            }
+
+            if (registration_deadline) {
+                const eventStart = new Date(`${event_date}T${start_time}`);
+                const deadline = new Date(registration_deadline);
+                if (deadline >= eventStart) {
+                    return res.status(400).json({
+                        success:false,
+                        message:"Registration deadline must be before event start time."
+                    });
+                }
+            }
+
+            const min = Number(min_volunteers || 1);
+            const needed = Number(volunteers_needed);
+            const max = Number(max_volunteers || volunteers_needed);
+            
+            if (
+                min <= 0 ||
+                needed <= 0 ||
+                max <= 0
+            ) {
+                return res.status(400).json({
+                    success:false,
+                    message:"Volunteer counts must be greater than zero."
+                });
+            }
+
+            if (min > max) {
+                return res.status(400).json({
+                    success:false,
+                    message:"Minimum volunteers cannot exceed maximum volunteers."
+                });
+            }
+
+            if (needed > max) {
+                return res.status(400).json({
+                    success:false,
+                    message:"Volunteers needed cannot exceed maximum volunteers."
+                });
+            }
+
+            if (min > needed) {
+                return res.status(400).json({
+                    success:false,
+                    message:"Minimum volunteers cannot exceed volunteers needed."
+                });
+            }
+
+            const payload = {
+                ...req.body,
+                volunteers_needed: needed,
+                min_volunteers: min,
+                max_volunteers: max
+            };
+
+            const newEvent = await AdminEventModel.createEvent(payload, adminId);
+            return res.status(201).json({ success: true, message: 'Event created successfully.', data: newEvent });
+        } catch (error) {
+            console.error('[Event Creation Subsystem Error]:', error);
+            return res.status(500).json({ success: false, message: 'Data transaction abort caused by backend validation collapse.' });
+        }
+    },
+
+    /**
+     * Publish Event
+     */
+    publishSystemEvent: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const adminId = req.user.userId;
+            const event = await AdminEventModel.publishEvent(
+                id,
+                adminId
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Event published successfully.",
+                data: event
+            });
+        } catch (err) {
+            if (err.message === "EVENT_NOT_FOUND") {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found."
+                });
+            }
+            if (err.message === "INVALID_EVENT_STATUS") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Only Draft events can be published."
+                });
+            }
+            console.error(err);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to publish event."
+            });
+        }
+    },
+
+    /**
+     * Complete an Event
+     */
+    completeSystemEvent: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const adminId = req.user.userId;
+            const event = await AdminEventModel.completeEvent(
+                id,
+                adminId
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Event completed successfully.",
+                data: event
+            });
+        } catch (error) {
+            if (error.message === "EVENT_NOT_FOUND") {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found."
+                });
+            }
+            if (error.message === "INVALID_EVENT_STATUS") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Only published events can be completed."
+                });
+            }
+            if (error.message === "EVENT_NOT_FINISHED") {
+                return res.status(400).json({
+                    success: false,
+                    message: "The event cannot be completed before its scheduled end time."
+                });
+            }
+            console.error("[Complete Event Error]:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to complete event."
+            });
+        }
+    },
+
+    /**
+     * Cancel an Event
+     */
+    cancelSystemEvent: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const adminId = req.user.userId;
+            const event = await AdminEventModel.cancelEvent(
+                id,
+                adminId
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Event cancelled successfully.",
+                data: event
+            });
+        } catch (error) {
+            if (error.message === "EVENT_NOT_FOUND") {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found."
+                });
+            }
+            if (error.message === "INVALID_EVENT_STATUS") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Only Draft or Published events can be cancelled."
+                });
+            }
+            console.error("[Cancel Event Error]:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to cancel event."
+            });
+        }
+    },
+
+    /**
+    * Archive an Event
+    */
+    archiveSystemEvent: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const adminId = req.user.userId;
+            const event = await AdminEventModel.archiveEvent(
+                id,
+                adminId
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Event archived successfully.",
+                data: event
+            });
+        } catch (error) {
+            if (error.message === "EVENT_NOT_FOUND") {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found."
+                });
+            }
+            if (error.message === "INVALID_EVENT_STATUS") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Only completed or cancelled events can be archived."
+                });
+            }
+            console.error("[Archive Event Error]:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to archive event."
+            });
+        }
+    },
+
+    /**
+     * Generate Attendance QR Code
+     */
+    generateDynamicQRToken: async (req, res) => {
+        try{
+            const { eventId } = req.params;
+            const adminId = req.user.userId;
+            const qr =
+                await AdminEventModel.generateQRCode(
+                    eventId,
+                    adminId
+                );
+            return res.status(200).json({
+                success:true,
+                data:qr
+            });
+        }
+        catch(error){
+
+            console.error(
+                "[Generate QR Error]",
+                error
+            );
+
+            return res.status(400).json({
+                success:false,
+                message:error.message
+            });
+        }
+    },
+
+        /**
+    * Generates a short-lived Checkout QR token
+    * Route: GET /api/admin/events/:eventId/checkout-qr
+    */
+    generateCheckoutQRToken: async (req, res) => {
+        try {
+            const { eventId } = req.params;
+            const eventResult = await db.query(
+                `
+                SELECT
+                    TO_CHAR(event_date,'YYYY-MM-DD') AS event_date,
+                    start_time,
+                    end_time,
+                    status
+                FROM events
+                WHERE event_id=$1
+                AND is_deleted=FALSE
+                `,
+                [eventId]
+            );
+            if (eventResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found."
+                });
+            }
+            const event = eventResult.rows[0];
+
+            if (event.status !== "published") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Checkout QR can only be generated for published events."
+                });
+            }
+
+            const now = new Date();
+            const eventStart = new Date(
+                `${event.event_date}T${event.start_time}`
+            );
+            const eventEnd = new Date(
+                `${event.event_date}T${event.end_time}`
+            );
+            if (now < eventStart) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Checkout is not available before the event starts."
+                });
+            }
+
+            if (now > eventEnd) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Checkout QR is no longer available because the event has ended."
+                });
+            }
+            const token = jwt.sign(
+                {
+                    eventId,
+                    action: "checkout",
+                    nonce: Math.random().toString(36).substring(2, 15)
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: "30s"
+                }
+            );
+            return res.status(200).json({
+                success: true,
+                data: {
+                    token,
+                    refreshIntervalMs: 25000
+                }
+            });
+        }
+        catch (error) {
+            console.error("[Checkout QR Error]", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to generate checkout QR."
+            });
+        }
+    },
+        
+
+    //===============================================================//
+
+
     /**
      * Retrieve global dashboard summary metrics cards safely
      */
@@ -40,38 +428,7 @@ const AdminEventController = {
         }
     },
 
-    /**
-     * Create an event with inline business validation rules
-     */
-    createNewSystemEvent: async (req, res) => {
-        try {
-            const { title, event_date, start_time, end_time, location_name, location_address, volunteers_needed } = req.body;
-            const adminId = req.user.userId; // Provided securely by identity verification guard middleware
-
-            // Structural Validation Layer matching Database requirements
-            if (!title || !event_date || !start_time || !end_time || !location_name || !location_address || !volunteers_needed) {
-                return res.status(400).json({ success: false, message: 'All baseline execution fields are strictly required.' });
-            }
-
-            // Verify logical sequence parameters match timeline rules
-            const incomingDate = new Date(event_date);
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            if (incomingDate < today) {
-                return res.status(400).json({ success: false, message: 'Operation aborted. Events cannot be initialized in past timelines.' });
-            }
-
-            if (start_time >= end_time) {
-                return res.status(400).json({ success: false, message: 'Logical chronological mismatch: end_time must be after start_time.' });
-            }
-
-            const newEvent = await AdminEventModel.createEvent(req.body, adminId);
-            return res.status(201).json({ success: true, message: 'System event initialized successfully.', data: newEvent });
-        } catch (error) {
-            console.error('[Event Creation Subsystem Error]:', error);
-            return res.status(500).json({ success: false, message: 'Data transaction abort caused by backend validation collapse.' });
-        }
-    },
+    
 
     /**
      * Fetch complete unified entity data matrix for the details modal view
@@ -101,9 +458,18 @@ const AdminEventController = {
             const adminId = req.user.userId;
 
             // Prevent critical database payload structure injection errors
-            const restrictedFields = ['event_id', 'created_by', 'created_at', 'updated_at'];
+            const restrictedFields = ['event_id', 'created_by', 'created_at', 'updated_at', 'status'];
             const updates = { ...req.body };
             restrictedFields.forEach(field => delete updates[field]);
+
+            if (Object.keys(updates).length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "No fields provided for update."
+                });
+            }
+
+            ///////////////////
 
             const updatedEvent = await AdminEventModel.updateEvent(id, updates, adminId);
             if (!updatedEvent) {
@@ -112,8 +478,23 @@ const AdminEventController = {
 
             return res.status(200).json({ success: true, message: 'Operational adjustments applied successfully.', data: updatedEvent });
         } catch (error) {
-            console.error('[Event Modification Failure]:', error);
-            return res.status(500).json({ success: false, message: 'Execution trace terminated: data integrity verification error.' });
+            if (error.message === "EVENT_NOT_FOUND") {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found."
+                });
+            }
+            if (error.message === "EVENT_ARCHIVED") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Archived events cannot be modified."
+                });
+            }
+            console.error("[Event Modification Failure]:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error."
+            });
         }
     },
 
@@ -163,87 +544,6 @@ const AdminEventController = {
         } catch (error) {
             console.error('[Event Deletion Failure]:', error);
             return res.status(500).json({ success: false, message: 'Backend failure during deletion sequence.' });
-        }
-    },
-
-    /**
-     * Generates a short-lived token for dynamic QR rendering
-     * Route: GET /api/admin/events/:eventId/qr-token
-     */
-    generateDynamicQRToken: async (req, res) => {
-        try {
-            const { eventId } = req.params;
-
-            // 1. Fetch event details to validate timing and status
-            const eventResult = await db.query(
-                `SELECT TO_CHAR(event_date, 'YYYY-MM-DD') AS formatted_date, start_time, end_time, status 
-                 FROM events 
-                 WHERE event_id = $1`,
-                [eventId]
-            );
-
-            if (eventResult.rows.length === 0) {
-                return res.status(404).json({ success: false, message: 'Event not found.' });
-            }
-
-            const event = eventResult.rows[0];
-
-            // 2. Hard block for cancelled or completed events
-            if (event.status === 'cancelled' || event.status === 'completed') {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: `Cannot generate check-in QR code for a ${event.status} event.` 
-                });
-            }
-
-            // 3. Time-window validation
-            const now = new Date();
-            
-            // Format DB dates/times into usable JavaScript Date objects
-            // Extract YYYY-MM-DD to avoid timezone shifting issues
-            const eventStartTime = new Date(`${event.formatted_date}T${event.start_time}`);
-            const eventEndTime = new Date(`${event.formatted_date}T${event.end_time}`);
-
-            // Allowed generation starts 30 minutes before the start time
-            const allowedStartTime = new Date(eventStartTime.getTime() - (30 * 60 * 1000));
-
-            if (now < allowedStartTime) {
-                const timeDiffMins = Math.ceil((allowedStartTime - now) / 60000);
-                return res.status(403).json({ 
-                    success: false, 
-                    message: `Check-in opens 30 minutes before the event. Please wait ${timeDiffMins} more minutes.` 
-                });
-            }
-
-            if (now > eventEndTime) {
-                return res.status(403).json({ 
-                    success: false, 
-                    message: 'This event has already ended. Check-ins are closed.' 
-                });
-            }
-
-            // 4. Create a token that expires in exactly 30 seconds
-            // We include a random nonce to ensure the hash (and resulting QR image) changes completely every time
-            const token = jwt.sign(
-                { 
-                    eventId, 
-                    nonce: Math.random().toString(36).substring(2, 15) 
-                }, 
-                process.env.JWT_SECRET, 
-                { expiresIn: '30s' }
-            );
-
-            return res.status(200).json({ 
-                success: true, 
-                data: { 
-                    token,
-                    refreshIntervalMs: 25000 // Tell frontend to request a new token 5 seconds before this one expires
-                }
-            });
-
-        } catch (error) {
-            console.error('[Admin Generate QR Error]:', error);
-            return res.status(500).json({ success: false, message: 'Failed to generate QR token.' });
         }
     }
 };

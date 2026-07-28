@@ -18,10 +18,7 @@ CREATE TYPE attendance_status AS ENUM (
     'registered',
     'withdrawn',
     'present',
-    'absent',
-    'waitlisted',
-    'late',
-    'excused'
+    'absent'
 );
 
 CREATE TYPE blood_group_type AS ENUM (
@@ -37,10 +34,7 @@ CREATE TYPE blood_group_type AS ENUM (
 
 CREATE TYPE event_lifecycle_status AS ENUM (
     'draft',
-    'registration_open',
-    'registration_closed',
-    'upcoming',
-    'ongoing',
+    'published',
     'completed',
     'cancelled',
     'archived'

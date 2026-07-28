@@ -9,7 +9,7 @@ const VolunteerModel = {
             firstName, lastName, phoneNumber, dateOfBirth, gender, bloodGroup,
             residentialAddress, city, state, pincode,
             emergencyContactName, emergencyContactRelation, emergencyContactNumber, medicalConditions,
-            educationLevel, professionOrCollege,
+            educationLevel, collegeName, profession,
             skills, languagesSpoken, interestedActivities
         } = profileData;
 
@@ -31,12 +31,13 @@ const VolunteerModel = {
                 emergency_contact_number = $13, 
                 medical_conditions = $14, 
                 education_level = $15, 
-                profession_or_college = $16, 
-                skills = $17, 
-                languages_spoken = $18, 
-                interested_activities = $19,
+                college_name = $16, 
+                profession = $17, 
+                skills = $18, 
+                languages_spoken = $19, 
+                interested_activities = $20,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE user_id = $20 AND role = 'volunteer' AND is_active = TRUE
+            WHERE user_id = $21 AND role = 'volunteer' AND is_active = TRUE
             RETURNING user_id, first_name, last_name, email;
         `;
 
@@ -44,7 +45,7 @@ const VolunteerModel = {
             firstName, lastName, phoneNumber, dateOfBirth, gender, bloodGroup,
             residentialAddress, city, state, pincode, emergencyContactName, 
             emergencyContactRelation, emergencyContactNumber, medicalConditions, 
-            educationLevel, professionOrCollege, skills, languagesSpoken, 
+            educationLevel, collegeName, profession, skills, languagesSpoken, 
             interestedActivities, userId
         ];
 
@@ -61,7 +62,7 @@ const VolunteerModel = {
                 total_hours_logged, 
                 total_activities_attended, 
                 last_updated
-            FROM volunteer_stats_cache
+            FROM volunteer_dashboard_stats
             WHERE volunteer_id = $1;
         `;
         
@@ -80,7 +81,7 @@ const VolunteerModel = {
                 first_name, last_name, email, phone_number, date_of_birth, gender, blood_group,
                 residential_address, city, state, pincode,
                 emergency_contact_name, emergency_contact_relation, emergency_contact_number, medical_conditions,
-                education_level, profession_or_college, skills, languages_spoken, interested_activities
+                education_level, college_name, profession, skills, languages_spoken, interested_activities
             FROM users 
             WHERE user_id = $1 AND role = 'volunteer' AND is_active = TRUE;
         `;

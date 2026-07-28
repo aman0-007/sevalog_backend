@@ -55,21 +55,34 @@ router.get('/volunteers/:userId', adminController.getVolunteerProfile);
 // ============================================================================
 
 /**
- * @route   GET /api/admin/events
- * @desc    Query system event registers using filtering matrices
- */
-router.get('/events', AdminEventController.listAllAdminEvents);
-
-/**
  * @route   POST /api/admin/events
  * @desc    Inject a new structured data layout into event tracking subsystems
  */
 router.post('/events', AdminEventController.createNewSystemEvent);
 
+/**
+ * @route   POST /api/admin/events/:id/publish
+ * @desc    Update status of draft event to publish
+ */
+router.post('/events/:id/publish', AdminEventController.publishSystemEvent);
 
-// ============================================================================
-// EVENT OPERATIONS & ATTENDANCE (Sub-routes)
-// ============================================================================
+/**
+ * @route   POST /api/admin/events/:id/complete
+ * @desc    Mark a published event as completed
+ */
+router.post('/events/:id/complete', AdminEventController.completeSystemEvent);
+
+/**
+ * @route   POST /api/admin/events/:id/cancel
+ * @desc    Cancel a draft or published event
+ */
+router.post('/events/:id/cancel', AdminEventController.cancelSystemEvent);
+
+/**
+ * @route   POST /api/admin/events/:id/archive
+ * @desc    Archive a completed or cancelled event
+ */
+router.post('/events/:id/archive', AdminEventController.archiveSystemEvent);
 
 /**
  * @route   GET /api/admin/events/:eventId/qr-token
@@ -78,16 +91,34 @@ router.post('/events', AdminEventController.createNewSystemEvent);
 router.get('/events/:eventId/qr-token', AdminEventController.generateDynamicQRToken);
 
 /**
+ * @route   GET /api/admin/events/:eventId/checkout-qr
+ * @desc    Generate dynamic Checkout QR token
+ */
+router.get("/events/:eventId/checkout-qr", AdminEventController.generateCheckoutQRToken);
+
+
+
+//=========================================//
+/**
+ * @route   GET /api/admin/events
+ * @desc    Query system event registers using filtering matrices
+ */
+router.get('/events', AdminEventController.listAllAdminEvents);
+
+
+
+
+// ============================================================================
+// EVENT OPERATIONS & ATTENDANCE (Sub-routes)
+// ============================================================================
+
+
+/**
  * @route   PUT /api/admin/events/attendance/:attendanceId
  * @desc    Alter participation states or commit post-activity metrics overrides
  */
 router.put('/events/attendance/:attendanceId', AdminEventController.updateRosterParticipation);
 
-/**
- * @route   POST /api/admin/events/:eventId/attendance
- * @desc    Mark attendance for a specific volunteer at a specific event
- */
-router.post('/events/:eventId/attendance', adminController.logVolunteerAttendance);
 
 /**
  * @route   GET /api/admin/events/:eventId/report

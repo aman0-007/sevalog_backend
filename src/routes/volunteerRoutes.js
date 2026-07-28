@@ -49,18 +49,6 @@ router.get('/dashboard', volunteerController.getMyDashboard);
 router.get('/events', volunteerEventController.getEvents);
 
 /**
- * @route   GET /api/volunteer/events/all
- * @desc    Get history of all events (past and future) with the user's specific status
- */
-router.get('/events/all', volunteerEventController.getAllEventsList);
-
-/**
- * @route   POST /api/volunteer/events/check-in
- * @desc    Processes a dynamic QR code scan from a volunteer to log attendance
- */
-router.post('/events/check-in', volunteerEventController.processQRCheckIn);
-
-/**
  * @route   POST /api/volunteer/events/:id/register
  * @desc    Register for an event (handles capacity and waitlisting)
  */
@@ -71,5 +59,17 @@ router.post('/events/:id/register', volunteerEventController.register);
  * @desc    Cancel registration for an event
  */
 router.post('/events/:id/withdraw', volunteerEventController.withdraw);
+
+/**
+ * @route   POST /api/volunteer/events/check-in
+ * @desc    Processes a dynamic QR code scan from a volunteer to log attendance
+ */
+router.post('/events/check-in', volunteerEventController.checkin);
+
+/**
+ * @route   POST /api/volunteer/events/:id/checkout
+ * @desc    Checkout from an event after attendance has been marked
+ */
+router.post('/events/:id/checkout', volunteerEventController.checkout);
 
 module.exports = router;

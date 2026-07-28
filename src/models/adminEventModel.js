@@ -1,17 +1,558 @@
-const db = require('../config/db'); // Your database connection pool
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const db = require('../config/db');
 
 const AdminEventModel = {
+
+    /**
+     * Create an event along with standard metadata tracking structures
+     */
+    createEvent: async (eventData, adminId) => {
+        const {
+            title,
+            description,
+            category,
+            event_date,
+            start_time,
+            end_time,
+            location_name,
+            location_address,
+            google_maps_link,
+            contact_person_name,
+            contact_person_phone,
+            volunteers_needed,
+            min_volunteers,
+            max_volunteers,
+            registration_deadline
+        } = eventData;
+
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+
+            const insertQuery = `
+                INSERT INTO events (
+                    title,
+                    description,
+                    category,
+                    event_date,
+                    start_time,
+                    end_time,
+                    location_name,
+                    location_address,
+                    google_maps_link,
+                    contact_person_name,
+                    contact_person_phone,
+                    volunteers_needed,
+                    min_volunteers,
+                    max_volunteers,
+                    registration_deadline,
+                    created_by
+                )
+                VALUES (
+                    $1,$2,$3,$4,$5,$6,
+                    $7,$8,$9,$10,$11,
+                    $12,$13,$14,$15,$16
+                )
+                RETURNING *;
+            `;
+
+            const values = [
+                title?.trim(),
+                description?.trim() || null,
+                category?.trim() || null,
+                event_date,
+                start_time,
+                end_time,
+                location_name?.trim(),
+                location_address?.trim(),
+                google_maps_link?.trim() || null,
+                contact_person_name?.trim() || null,
+                contact_person_phone?.trim() || null,
+                volunteers_needed,
+                min_volunteers,
+                max_volunteers,
+                registration_deadline,
+                adminId
+            ];
+
+            const { rows } = await client.query(insertQuery, values);
+            await client.query(
+                `
+                INSERT INTO event_timeline
+                (event_id,user_id,action)
+                VALUES ($1,$2,$3)
+                `,
+                [
+                    rows[0].event_id,
+                    adminId,
+                    'Event created as Draft'
+                ]
+            );
+
+            await client.query("COMMIT");
+
+            return rows[0];
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+
+    /**
+     * Publish a Draft Event
+     */
+    publishEvent: async (eventId, adminId) => {
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+            // Lock the row
+            const eventResult = await client.query(
+                `
+                SELECT *
+                FROM events
+                WHERE event_id = $1
+                AND is_deleted = FALSE
+                FOR UPDATE
+                `,
+                [eventId]
+            );
+            if (eventResult.rows.length === 0) {
+                throw new Error("EVENT_NOT_FOUND");
+            }
+            const event = eventResult.rows[0];
+            if (event.status !== "draft") {
+                throw new Error("INVALID_EVENT_STATUS");
+            }
+            // Update status
+            const updateResult = await client.query(
+                `
+                UPDATE events
+                SET
+                    status='published',
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE event_id=$1
+                RETURNING *;
+                `,
+                [eventId]
+            );
+            // Timeline
+            await client.query(
+                `
+                INSERT INTO event_timeline
+                (
+                    event_id,
+                    user_id,
+                    action
+                )
+                VALUES
+                (
+                    $1,
+                    $2,
+                    $3
+                )
+                `,
+                [
+                    eventId,
+                    adminId,
+                    "Event Published"
+                ]
+            );
+            await client.query("COMMIT");
+            return updateResult.rows[0];
+        } catch (err) {
+            await client.query("ROLLBACK");
+            throw err;
+        } finally {
+            client.release();
+        }
+    },
+
+    /**
+     * Complete a Published Event
+     */
+    completeEvent: async (eventId, adminId) => {
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+            // Lock event
+            const eventResult = await client.query(
+                `
+                SELECT *
+                FROM events
+                WHERE event_id = $1
+                AND is_deleted = FALSE
+                FOR UPDATE
+                `,
+                [eventId]
+            );
+            if (eventResult.rows.length === 0) {
+                throw new Error("EVENT_NOT_FOUND");
+            }
+            const event = eventResult.rows[0];
+            if (event.status !== "published") {
+                throw new Error("INVALID_EVENT_STATUS");
+            }
+            const now = new Date();
+            const eventEnd = new Date(
+                `${event.event_date.toISOString().split('T')[0]}T${event.end_time}`
+            );
+            if (now < eventEnd) {
+                throw new Error("EVENT_NOT_FINISHED");
+            }
+            // Volunteers who never checked in are absent
+            await client.query(
+                `
+                UPDATE attendance
+                SET status = 'absent'
+                WHERE event_id = $1
+                AND status = 'registered'
+                `,
+                [eventId]
+            );
+            // Complete event
+            const updateResult = await client.query(
+                `
+                UPDATE events
+                SET
+                    status = 'completed',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE event_id = $1
+                RETURNING *;
+                `,
+                [eventId]
+            );
+            // Timeline
+            await client.query(
+                `
+                INSERT INTO event_timeline
+                (
+                    event_id,
+                    user_id,
+                    action
+                )
+                VALUES
+                (
+                    $1,
+                    $2,
+                    $3
+                )
+                `,
+                [
+                    eventId,
+                    adminId,
+                    'Event Completed'
+                ]
+            );
+            await client.query("COMMIT");
+            return updateResult.rows[0];
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+
+    /**
+     * Cancel an Event
+     */
+    cancelEvent: async (eventId, adminId) => {
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+            // Lock event row
+            const eventResult = await client.query(
+                `
+                SELECT *
+                FROM events
+                WHERE event_id = $1
+                AND is_deleted = FALSE
+                FOR UPDATE
+                `,
+                [eventId]
+            );
+            if (eventResult.rows.length === 0) {
+                throw new Error("EVENT_NOT_FOUND");
+            }
+            const event = eventResult.rows[0];
+            // Allowed only for Draft and Published events
+            if (!["draft", "published"].includes(event.status)) {
+                throw new Error("INVALID_EVENT_STATUS");
+            }
+            // Mark all registered/absent volunteers as withdrawn
+            await client.query(
+                `
+                UPDATE attendance
+                SET status = 'withdrawn'
+                WHERE event_id = $1
+                AND status IN ('registered', 'absent');
+                `,
+                [eventId]
+            );
+            // Cancel Event
+            const updateResult = await client.query(
+                `
+                UPDATE events
+                SET
+                    status = 'cancelled',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE event_id = $1
+                RETURNING *;
+                `,
+                [eventId]
+            );
+            // Timeline
+            await client.query(
+                `
+                INSERT INTO event_timeline
+                (
+                    event_id,
+                    user_id,
+                    action
+                )
+                VALUES
+                (
+                    $1,
+                    $2,
+                    $3
+                )
+                `,
+                [
+                    eventId,
+                    adminId,
+                    'Event Cancelled'
+                ]
+            );
+            await client.query("COMMIT");
+            return updateResult.rows[0];
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+
+    /**
+     * Archive a Completed or Cancelled Event
+     */
+    archiveEvent: async (eventId, adminId) => {
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+            // Lock event row
+            const eventResult = await client.query(
+                `
+                SELECT *
+                FROM events
+                WHERE event_id = $1
+                AND is_deleted = FALSE
+                FOR UPDATE
+                `,
+                [eventId]
+            );
+            if (eventResult.rows.length === 0) {
+                throw new Error("EVENT_NOT_FOUND");
+            }
+            const event = eventResult.rows[0];
+            // Only Completed or Cancelled events can be archived
+            if (!["completed", "cancelled"].includes(event.status)) {
+                throw new Error("INVALID_EVENT_STATUS");
+            }
+            const updateResult = await client.query(
+                `
+                UPDATE events
+                SET
+                    status = 'archived',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE event_id = $1
+                RETURNING *;
+                `,
+                [eventId]
+            );
+            await client.query(
+                `
+                INSERT INTO event_timeline
+                (
+                    event_id,
+                    user_id,
+                    action
+                )
+                VALUES
+                (
+                    $1,
+                    $2,
+                    $3
+                )
+                `,
+                [
+                    eventId,
+                    adminId,
+                    'Event Archived'
+                ]
+            );
+            await client.query("COMMIT");
+            return updateResult.rows[0];
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+
+    /**
+     * Generate Attendance QR code
+     */
+    generateQRCode: async (eventId, adminId) => {
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+            const eventResult = await client.query(
+                `
+                SELECT
+                    event_id,
+                    status,
+                    event_date,
+                    start_time,
+                    end_time
+                FROM events
+                WHERE event_id = $1
+                AND is_deleted = FALSE
+                FOR UPDATE
+                `,
+                [eventId]
+            );
+            if (eventResult.rows.length === 0) {
+                throw new Error("Event not found.");
+            }
+            const event = eventResult.rows[0];
+            if (event.status !== "published") {
+                throw new Error(
+                    "QR code can only be generated for published events."
+                );
+            }
+            const now = new Date();
+            const eventStart = new Date(
+                `${event.event_date.toISOString().split("T")[0]}T${event.start_time}`
+            );
+            const eventEnd = new Date(
+                `${event.event_date.toISOString().split("T")[0]}T${event.end_time}`
+            );
+            const allowedStart = new Date(
+                eventStart.getTime() - (30 * 60 * 1000)
+            );
+            if (now < allowedStart) {
+                const mins = Math.ceil(
+                    (allowedStart - now) / 60000
+                );
+                throw new Error(
+                    `Check-in opens 30 minutes before the event. Please wait ${mins} minute(s).`
+                );
+
+            }
+            if (now > eventEnd) {
+                throw new Error(
+                    "Event has already ended."
+                );
+            }
+            const token = jwt.sign(
+                {
+                    eventId,
+                    nonce: crypto.randomUUID()
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: "30s"
+                }
+            );
+            const expiry = new Date(
+                Date.now() + 30000
+            );
+            await client.query(
+                `
+                UPDATE events
+                SET
+                    qr_code_token = $1,
+                    qr_expiry = $2
+                WHERE event_id = $3
+                `,
+                [
+                    token,
+                    expiry,
+                    eventId
+                ]
+            );
+            await client.query(
+                `
+                INSERT INTO event_timeline
+                (
+                    event_id,
+                    user_id,
+                    action
+                )
+                VALUES
+                (
+                    $1,
+                    $2,
+                    $3
+                )
+                `,
+                [
+                    eventId,
+                    adminId,
+                    'Attendance QR Generated'
+                ]
+            );
+            await client.query("COMMIT");
+            return {
+                token,
+                expiresAt: expiry,
+                refreshIntervalMs: 25000
+            };
+        }
+        catch(error){
+            await client.query("ROLLBACK");
+            throw error;
+        }
+        finally{
+            client.release();
+        }
+    },
+
+    
+
     /**
      * Get aggregated analytics counts from cached dashboard stats
      */
     getMetrics: async () => {
-        const queryText = `SELECT * FROM admin_dashboard_cache WHERE id = 1;`;
+        const queryText = `SELECT
+            (SELECT COUNT(*) FROM events WHERE is_deleted = FALSE) AS total_events,
+            (SELECT COUNT(*) FROM events
+                WHERE status='upcoming' AND is_deleted=FALSE) AS upcoming_events,
+            (SELECT COUNT(*) FROM events
+                WHERE status='ongoing' AND is_deleted=FALSE) AS ongoing_events,
+            (SELECT COUNT(*) FROM events
+                WHERE status='completed' AND is_deleted=FALSE) AS completed_events,
+            (SELECT COUNT(*) FROM users
+                WHERE role='volunteer' AND is_active=TRUE) AS total_volunteers,
+            (
+                SELECT COALESCE(SUM(hours_logged),0)
+                FROM attendance
+                WHERE status='present'
+            ) AS total_hours_logged;`;
+
+        
         const { rows } = await db.query(queryText);
         if (rows.length === 0) {
             // Fallback object matching dashboard card design
             return {
                 total_events: 0, upcoming_events: 0, ongoing_events: 0,
-                completed_events: 0, total_volunteers: 0, active_volunteers: 0,
+                completed_events: 0, total_volunteers: 0,
                 total_hours_logged: 0.00
             };
         }
@@ -56,7 +597,6 @@ const AdminEventModel = {
             SELECT 
                 e.*,
                 COALESCE(att.reg_count, 0)::integer AS volunteers_registered,
-                COALESCE(att.wait_count, 0)::integer AS volunteers_waitlisted,
                 -- FIX: Removed registration_closed from the trap. Let the clock dictate the lifecycle.
                 CASE 
                     WHEN e.status IN ('cancelled', 'archived', 'draft') THEN e.status::text
@@ -69,8 +609,7 @@ const AdminEventModel = {
             LEFT JOIN (
                 SELECT 
                     event_id,
-                    COUNT(*) FILTER (WHERE status IN ('registered', 'present')) AS reg_count,
-                    COUNT(*) FILTER (WHERE status = 'waitlisted') AS wait_count
+                    COUNT(*) FILTER (WHERE status IN ('registered', 'present')) AS reg_count
                 FROM attendance
                 GROUP BY event_id
             ) att ON e.event_id = att.event_id
@@ -84,60 +623,6 @@ const AdminEventModel = {
 
         const { rows } = await db.query(baseQuery, queryParams);
         return rows;
-    },
-
-    /**
-     * Create an event along with standard metadata tracking structures
-     */
-    createEvent: async (eventData, adminId) => {
-        const {
-            title, description, category, event_date, start_time, end_time,
-            location_name, location_address, google_maps_link, contact_person_name,
-            contact_person_phone, volunteers_needed, min_volunteers, max_volunteers,
-            waitlist_enabled, auto_close_registration, banner_image_url, event_color,
-            priority, visibility, registration_deadline
-        } = eventData;
-
-        const client = await db.connect();
-        try {
-            await client.query('BEGIN');
-
-            const insertText = `
-                INSERT INTO events (
-                    title, description, category, event_date, start_time, end_time,
-                    location_name, location_address, google_maps_link, contact_person_name,
-                    contact_person_phone, volunteers_needed, min_volunteers, max_volunteers,
-                    waitlist_enabled, auto_close_registration, banner_image_url, event_color,
-                    priority, visibility, registration_deadline, created_by, status
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, 'draft')
-                RETURNING *;
-            `;
-
-            const values = [
-                title, description, category, event_date, start_time, end_time,
-                location_name, location_address, google_maps_link, contact_person_name,
-                contact_person_phone, volunteers_needed, min_volunteers, max_volunteers || volunteers_needed,
-                waitlist_enabled || false, auto_close_registration || true, banner_image_url, event_color || '#3B82F6',
-                priority || 'medium', visibility || 'public', registration_deadline, adminId
-            ];
-
-            const res = await client.query(insertText, values);
-            const createdEvent = res.rows[0];
-
-            // Auto-log initial operational state change inside event history tracking system
-            await client.query(
-                `INSERT INTO event_timeline (event_id, user_id, action) VALUES ($1, $2, $3)`,
-                [createdEvent.event_id, adminId, 'Event created in Draft mode']
-            );
-
-            await client.query('COMMIT');
-            return createdEvent;
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
     },
 
     /**
@@ -164,9 +649,9 @@ const AdminEventModel = {
         const event = rows[0];
 
         // Parallel processing of related components to ensure performance under load
-        const [volunteers, timeline, notes] = await Promise.all([
+        const [volunteers, timeline] = await Promise.all([
             db.query(`
-                SELECT a.attendance_id, a.status, a.attendance_method, a.check_in_time, a.check_out_time, a.hours_logged, a.admin_remarks, a.created_at AS registered_at,
+                SELECT a.attendance_id, a.status, a.check_in_time, a.check_out_time, a.hours_logged, a.admin_remarks, a.created_at AS registered_at,
                        u.user_id, u.first_name, u.last_name, u.email, u.phone_number
                 FROM attendance a
                 JOIN users u ON a.volunteer_id = u.user_id
@@ -174,12 +659,10 @@ const AdminEventModel = {
                 ORDER BY a.created_at ASC
             `, [eventId]),
             db.query(`SELECT t.*, u.first_name, u.last_name FROM event_timeline t LEFT JOIN users u ON t.user_id = u.user_id WHERE t.event_id = $1 ORDER BY t.timestamp DESC`, [eventId]),
-            db.query(`SELECT n.*, u.first_name, u.last_name FROM event_notes n JOIN users u ON n.admin_id = u.user_id WHERE n.event_id = $1 ORDER BY n.created_at DESC`, [eventId])
         ]);
 
         event.roster = volunteers.rows;
         event.timeline = timeline.rows;
-        event.internal_notes = notes.rows;
 
         return event;
     },
@@ -188,27 +671,66 @@ const AdminEventModel = {
      * Complete lifecycle state update wrapper
      */
     updateEvent: async (eventId, updates, adminId) => {
+        const eventResult = await db.query(
+            `
+            SELECT status
+            FROM events
+            WHERE event_id = $1
+            AND is_deleted = FALSE
+            `,
+            [eventId]
+        );
+
+        if (eventResult.rows.length === 0) {
+            throw new Error("EVENT_NOT_FOUND");
+        }
+
+        // Archived events cannot be edited
+        if (eventResult.rows[0].status === "archived") {
+            throw new Error("EVENT_ARCHIVED");
+        }
+
         const fields = Object.keys(updates);
         if (fields.length === 0) return null;
 
         const setClause = fields.map((field, idx) => `"${field}" = $${idx + 2}`).join(', ');
-        const queryText = `
-            UPDATE events 
-            SET ${setClause}, updated_at = CURRENT_TIMESTAMP 
-            WHERE event_id = $1 AND is_deleted = FALSE 
-            RETURNING *;
-        `;
-
         const values = [eventId, ...Object.values(updates)];
-        const { rows } = await db.query(queryText, values);
 
-        if (rows.length > 0) {
-            await db.query(
-                `INSERT INTO event_timeline (event_id, user_id, action) VALUES ($1, $2, $3)`,
-                [eventId, adminId, `Fields updated: ${fields.join(', ')}`]
-            );
-        }
-        return rows[0];
+        const updateResult = await db.query(
+            `
+            UPDATE events
+            SET
+                ${setClause},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE event_id = $1
+            RETURNING *;
+            `,
+            values
+        );
+
+        await db.query(
+            `
+            INSERT INTO event_timeline
+            (
+                event_id,
+                user_id,
+                action
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                $3
+            )
+            `,
+            [
+                eventId,
+                adminId,
+                `Fields updated: ${fields.join(", ")}`
+            ]
+        );
+
+        return updateResult.rows[0];
     },
 
     /**
