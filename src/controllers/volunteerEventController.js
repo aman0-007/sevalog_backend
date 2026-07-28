@@ -118,7 +118,7 @@ const VolunteerEventController = {
             // 3. Perform the Check-in
             await db.query(
                 `UPDATE attendance 
-                 SET status = 'present', check_in_time = NOW(), updated_at = NOW() 
+                 SET status = 'present', check_in_time = NOW()
                  WHERE event_id = $1 AND volunteer_id = $2`,
                 [eventId, userId]
             );
