@@ -22,7 +22,7 @@ const VolunteerEventModel = {
             LEFT JOIN attendance user_att ON e.event_id = user_att.event_id AND user_att.volunteer_id = $1
             WHERE e.is_deleted = FALSE 
               AND e.visibility = 'public' 
-              AND e.status IN ('upcoming', 'ongoing', 'registration_closed')
+              AND e.status IN ('registration_open', 'upcoming', 'ongoing', 'registration_closed')
               AND e.event_date >= CURRENT_DATE
             ORDER BY e.event_date ASC, e.start_time ASC;
         `;
@@ -47,6 +47,10 @@ const VolunteerEventModel = {
 
             if (!event.registration_open || event.status === 'cancelled') {
                 throw new Error('Registration is closed for this event.');
+            }
+
+            if (event.registration_deadline && new Date() > new Date(event.registration_deadline)) {
+                throw new Error('The registration deadline for this event has passed.');
             }
 
             // 2. Check current capacity
@@ -102,7 +106,7 @@ const VolunteerEventModel = {
     /**
      * Fetch all public events (past and future) with the user's historical status
      */
-    getAllEventsHistory: async (userId) => {
+    getAllEventsHistory: async (userId, limit = 50, offset = 0) => {
         const queryText = `
             SELECT 
                 e.event_id, e.title, e.event_date, e.start_time, e.end_time,
@@ -121,9 +125,11 @@ const VolunteerEventModel = {
             LEFT JOIN attendance user_att ON e.event_id = user_att.event_id AND user_att.volunteer_id = $1
             WHERE e.is_deleted = FALSE 
               AND e.visibility = 'public'
-            ORDER BY e.event_date DESC, e.start_time DESC; -- Descending for history
+              AND e.status NOT IN ('draft', 'archived')
+            ORDER BY e.event_date DESC, e.start_time DESC
+            LIMIT $2 OFFSET $3;
         `;
-        const { rows } = await db.query(queryText, [userId]);
+        const { rows } = await db.query(queryText, [userId, limit, offset]);
         return rows;
     }
 };

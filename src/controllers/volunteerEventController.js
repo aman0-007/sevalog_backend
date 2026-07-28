@@ -53,8 +53,12 @@ const VolunteerEventController = {
     getAllEventsList: async (req, res) => {
         try {
             const userId = req.user.userId;
-            const events = await VolunteerEventModel.getAllEventsHistory(userId);
-            return res.status(200).json({ success: true, data: events });
+
+            const limit = parseInt(req.query.limit) || 50;
+            const offset = parseInt(req.query.offset) || 0;
+
+            const events = await VolunteerEventModel.getAllEventsHistory(userId, limit, offset);
+            return res.status(200).json({ success: true, count: events.length, data: events });
         } catch (error) {
             console.error('[Volunteer Fetch All Events Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to retrieve event history.' });
