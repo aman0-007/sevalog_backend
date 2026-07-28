@@ -7,7 +7,9 @@ const VolunteerEventModel = {
     getAvailableEvents: async (userId) => {
         const queryText = `
             SELECT 
-                e.event_id, e.title, e.event_date, e.start_time, e.end_time,
+                e.event_id, e.title,
+                TO_CHAR(e.event_date, 'YYYY-MM-DD') AS event_date, 
+                e.start_time, e.end_time,
                 e.location_name, e.category, e.banner_image_url, e.status AS event_status,
                 e.volunteers_needed, e.max_volunteers, e.registration_open, e.waitlist_enabled,
                 COALESCE(att_counts.reg_count, 0)::integer AS current_registrations,
@@ -109,7 +111,9 @@ const VolunteerEventModel = {
     getAllEventsHistory: async (userId, limit = 50, offset = 0) => {
         const queryText = `
             SELECT 
-                e.event_id, e.title, e.event_date, e.start_time, e.end_time,
+                e.event_id, e.title, 
+                TO_CHAR(e.event_date, 'YYYY-MM-DD') AS event_date, 
+                e.start_time, e.end_time,
                 e.location_name, e.category, e.banner_image_url, e.status AS event_status,
                 e.max_volunteers, e.registration_open,
                 COALESCE(att_counts.reg_count, 0)::integer AS current_registrations,
