@@ -57,9 +57,9 @@ const AdminEventModel = {
                 e.*,
                 COALESCE(att.reg_count, 0)::integer AS volunteers_registered,
                 COALESCE(att.wait_count, 0)::integer AS volunteers_waitlisted,
-                -- Return real-time runtime calculated lifecycle if override isn't forcing static values
+                -- FIX: Removed registration_closed from the trap. Let the clock dictate the lifecycle.
                 CASE 
-                    WHEN e.status IN ('cancelled', 'archived', 'draft', 'registration_closed') THEN e.status::text
+                    WHEN e.status IN ('cancelled', 'archived', 'draft') THEN e.status::text
                     WHEN CURRENT_DATE < e.event_date THEN 'upcoming'
                     WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME BETWEEN e.start_time AND e.end_time THEN 'ongoing'
                     WHEN CURRENT_DATE > e.event_date OR (CURRENT_DATE = e.event_date AND CURRENT_TIME > e.end_time) THEN 'completed'
@@ -146,7 +146,14 @@ const AdminEventModel = {
     getEventDetails: async (eventId) => {
         const eventQuery = `
             SELECT e.*, 
-                   u.first_name AS creator_first, u.last_name AS creator_last
+                   u.first_name AS creator_first, u.last_name AS creator_last,
+                   CASE 
+                       WHEN e.status IN ('cancelled', 'archived', 'draft') THEN e.status::text
+                       WHEN CURRENT_DATE < e.event_date THEN 'upcoming'
+                       WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME BETWEEN e.start_time AND e.end_time THEN 'ongoing'
+                       WHEN CURRENT_DATE > e.event_date OR (CURRENT_DATE = e.event_date AND CURRENT_TIME > e.end_time) THEN 'completed'
+                       ELSE e.status::text
+                   END AS dynamic_status
             FROM events e
             LEFT JOIN users u ON e.created_by = u.user_id
             WHERE e.event_id = $1 AND e.is_deleted = FALSE;
