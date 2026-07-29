@@ -7,8 +7,9 @@ async function createAdmin() {
         const admin = {
             first_name: "Master",
             last_name: "Admin",
-            email: "admin@sevalog.com",
-            password: "@Aman007"
+            email: "admin@sevalog.in",
+            password: "123456",
+            profession: "System Administrator"
         };
 
         const existing = await db.query(
@@ -31,7 +32,8 @@ async function createAdmin() {
                 first_name,
                 last_name,
                 email,
-                password_hash
+                password_hash,
+                profession
             )
             VALUES
             (
@@ -39,20 +41,23 @@ async function createAdmin() {
                 $1,
                 $2,
                 $3,
-                $4
+                $4,
+                $5
             )
             RETURNING
                 user_id,
                 first_name,
                 last_name,
                 email,
-                role
+                role,
+                profession
             `,
             [
                 admin.first_name,
                 admin.last_name,
                 admin.email,
-                passwordHash
+                passwordHash,
+                admin.profession
             ]
         );
 

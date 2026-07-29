@@ -13,7 +13,7 @@ const runMigration = async () => {
         process.exit(1);
     }
 
-    const sqlDir = path.join(__dirname, '../sql'); // Adjust path if needed
+    const sqlDir = path.join(__dirname, '../sql');
 
     try {
         // 1. Find the correct SQL file
