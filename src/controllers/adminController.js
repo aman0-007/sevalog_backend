@@ -40,7 +40,7 @@ const adminController = {
                 offset
             };
 
-            const { data, totalCount } = await AdminVolunteerModel.getAllVolunteers(filters);
+            const { data, totalCount } = await AdminModel.getAllVolunteers(filters);
             
             return res.status(200).json({ 
                 success: true, 
@@ -67,7 +67,7 @@ const adminController = {
     getVolunteerProfile: async (req, res) => {
         try {
             const { id } = req.params;
-            const profile = await AdminVolunteerModel.getVolunteerDetails(id);
+            const profile = await AdminModel.getVolunteerDetails(id);
             
             if (!profile) {
                 return res.status(404).json({ 
