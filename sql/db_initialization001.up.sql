@@ -136,9 +136,6 @@ CREATE TABLE events (
     contact_person_name VARCHAR(100),
     contact_person_phone VARCHAR(20),
 
-    qr_code_token VARCHAR(255) UNIQUE,
-    qr_expiry TIMESTAMP WITH TIME ZONE,
-
     is_deleted BOOLEAN DEFAULT FALSE,
     deleted_at TIMESTAMP WITH TIME ZONE,
     deleted_by UUID
@@ -335,6 +332,7 @@ CREATE TRIGGER trigger_calculate_hours
 BEFORE INSERT OR UPDATE OF check_in_time, check_out_time
 ON attendance
 FOR EACH ROW
+WHEN (NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL)
 EXECUTE FUNCTION calculate_attendance_hours();
 
 -- =====================================================

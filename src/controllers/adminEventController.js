@@ -157,6 +157,49 @@ const AdminEventController = {
     },
 
     /**
+     * Update Specific Event Details
+     */
+    updateSystemEvent: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const adminId = req.user.userId;
+            
+            // Strict allowlist of fields that can be updated to prevent SQL injection or state hacking
+            const allowedFields = [
+                'title', 'description', 'category', 'event_date', 
+                'start_time', 'end_time', 'location_name', 'location_address', 
+                'google_maps_link', 'contact_person_name', 'contact_person_phone', 
+                'volunteers_needed', 'min_volunteers', 'max_volunteers', 'registration_deadline'
+            ];
+
+            const updateData = {};
+            Object.keys(req.body).forEach(key => {
+                if (allowedFields.includes(key)) {
+                    updateData[key] = req.body[key];
+                }
+            });
+
+            if (Object.keys(updateData).length === 0) {
+                return res.status(400).json({ success: false, message: 'No valid fields provided for update.' });
+            }
+
+            const updatedEvent = await AdminEventModel.updateEvent(id, updateData, adminId);
+            
+            return res.status(200).json({
+                success: true,
+                message: 'Event updated successfully.',
+                data: updatedEvent
+            });
+        } catch (error) {
+            if (error.message === "EVENT_NOT_FOUND") return res.status(404).json({ success: false, message: "Event not found." });
+            if (error.message === "INVALID_EVENT_STATUS") return res.status(400).json({ success: false, message: "Cannot edit completed, cancelled, or archived events." });
+            
+            console.error('[Update Event Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to update event.' });
+        }
+    },
+
+    /**
      * Complete an Event
      */
     completeSystemEvent: async (req, res) => {
@@ -274,259 +317,6 @@ const AdminEventController = {
     },
 
     /**
-     * Generate Attendance QR Code
-     */
-    generateDynamicQRToken: async (req, res) => {
-        try{
-            const { eventId } = req.params;
-            const adminId = req.user.userId;
-            const qr =
-                await AdminEventModel.generateQRCode(
-                    eventId,
-                    adminId
-                );
-            return res.status(200).json({
-                success:true,
-                data:qr
-            });
-        }
-        catch(error){
-
-            console.error(
-                "[Generate QR Error]",
-                error
-            );
-
-            return res.status(400).json({
-                success:false,
-                message:error.message
-            });
-        }
-    },
-
-        /**
-    * Generates a short-lived Checkout QR token
-    * Route: GET /api/admin/events/:eventId/checkout-qr
-    */
-    generateCheckoutQRToken: async (req, res) => {
-        try {
-            const { eventId } = req.params;
-            const eventResult = await db.query(
-                `
-                SELECT
-                    TO_CHAR(event_date,'YYYY-MM-DD') AS event_date,
-                    start_time,
-                    end_time,
-                    status
-                FROM events
-                WHERE event_id=$1
-                AND is_deleted=FALSE
-                `,
-                [eventId]
-            );
-            if (eventResult.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Event not found."
-                });
-            }
-            const event = eventResult.rows[0];
-
-            if (event.status !== "published") {
-                return res.status(400).json({
-                    success: false,
-                    message: "Checkout QR can only be generated for published events."
-                });
-            }
-
-            const now = new Date();
-            const eventStart = new Date(
-                `${event.event_date}T${event.start_time}`
-            );
-            const eventEnd = new Date(
-                `${event.event_date}T${event.end_time}`
-            );
-            if (now < eventStart) {
-                return res.status(403).json({
-                    success: false,
-                    message: "Checkout is not available before the event starts."
-                });
-            }
-
-            if (now > eventEnd) {
-                return res.status(403).json({
-                    success: false,
-                    message: "Checkout QR is no longer available because the event has ended."
-                });
-            }
-            const token = jwt.sign(
-                {
-                    eventId,
-                    action: "checkout",
-                    nonce: Math.random().toString(36).substring(2, 15)
-                },
-                process.env.JWT_SECRET,
-                {
-                    expiresIn: "30s"
-                }
-            );
-            return res.status(200).json({
-                success: true,
-                data: {
-                    token,
-                    refreshIntervalMs: 25000
-                }
-            });
-        }
-        catch (error) {
-            console.error("[Checkout QR Error]", error);
-            return res.status(500).json({
-                success: false,
-                message: "Failed to generate checkout QR."
-            });
-        }
-    },
-        
-
-    //===============================================================//
-
-
-    /**
-     * Retrieve global dashboard summary metrics cards safely
-     */
-    getDashboardMetrics: async (req, res) => {
-        try {
-            const data = await AdminEventModel.getMetrics();
-            return res.status(200).json({ success: true, data });
-        } catch (error) {
-            console.error('[Metrics Engine Error]:', error);
-            return res.status(500).json({ success: false, message: 'Server error pulling structural cache records.' });
-        }
-    },
-
-    /**
-     * List all structural events matching query parameters
-     */
-    listAllAdminEvents: async (req, res) => {
-        try {
-            const filters = {
-                search: req.query.search || null,
-                location: req.query.location || null,
-                category: req.query.category || null,
-                status: req.query.status || null,
-                sortBy: req.query.sortBy || 'created',
-                sortOrder: req.query.sortOrder || 'DESC',
-                limit: req.query.limit || 50,
-                offset: req.query.offset || 0
-            };
-
-            const data = await AdminEventModel.getAllEvents(filters);
-            return res.status(200).json({ success: true, count: data.length, data });
-        } catch (error) {
-            console.error('[Event Engine List Query Error]:', error);
-            return res.status(500).json({ success: false, message: 'Structural processing failure during listing retrieval.' });
-        }
-    },
-
-    
-
-    /**
-     * Fetch complete unified entity data matrix for the details modal view
-     */
-    getEventDetailSummary: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const eventDetails = await AdminEventModel.getEventDetails(id);
-            
-            if (!eventDetails) {
-                return res.status(404).json({ success: false, message: 'The requested system entity does not exist or has been soft-deleted.' });
-            }
-
-            return res.status(200).json({ success: true, data: eventDetails });
-        } catch (error) {
-            console.error('[Details Modal Retrieval Crash]:', error);
-            return res.status(500).json({ success: false, message: 'Unified data structural collapse during retrieval operation.' });
-        }
-    },
-
-    /**
-     * Update baseline attributes or trigger system configuration toggles
-     */
-    modifySystemEvent: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const adminId = req.user.userId;
-
-            // Prevent critical database payload structure injection errors
-            const restrictedFields = ['event_id', 'created_by', 'created_at', 'updated_at', 'status'];
-            const updates = { ...req.body };
-            restrictedFields.forEach(field => delete updates[field]);
-
-            if (Object.keys(updates).length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: "No fields provided for update."
-                });
-            }
-
-            ///////////////////
-
-            const updatedEvent = await AdminEventModel.updateEvent(id, updates, adminId);
-            if (!updatedEvent) {
-                return res.status(404).json({ success: false, message: 'Target event reference lookup resolved to zero entries.' });
-            }
-
-            return res.status(200).json({ success: true, message: 'Operational adjustments applied successfully.', data: updatedEvent });
-        } catch (error) {
-            if (error.message === "EVENT_NOT_FOUND") {
-                return res.status(404).json({
-                    success: false,
-                    message: "Event not found."
-                });
-            }
-            if (error.message === "EVENT_ARCHIVED") {
-                return res.status(400).json({
-                    success: false,
-                    message: "Archived events cannot be modified."
-                });
-            }
-            console.error("[Event Modification Failure]:", error);
-            return res.status(500).json({
-                success: false,
-                message: "Internal server error."
-            });
-        }
-    },
-
-    /**
-     * Modify precise attendance record fields and trigger cache recalculation structures
-     */
-    updateRosterParticipation: async (req, res) => {
-        try {
-            const { attendanceId } = req.params;
-            const { status, hours_logged, admin_remarks, check_in_time, check_out_time } = req.body;
-            const adminId = req.user.userId;
-
-            if (!status) {
-                return res.status(400).json({ success: false, message: 'A targeted structural application state status must be supplied.' });
-            }
-
-            const updatedRecord = await AdminEventModel.updateAttendanceStatus(attendanceId, status, adminId, {
-                hours_logged, admin_remarks, check_in_time, check_out_time
-            });
-
-            if (!updatedRecord) {
-                return res.status(404).json({ success: false, message: 'Roster target index references mapping error.' });
-            }
-
-            return res.status(200).json({ success: true, message: 'Roster state entry modified cleanly.', data: updatedRecord });
-        } catch (error) {
-            console.error('[Roster Core Update Failure]:', error);
-            return res.status(500).json({ success: false, message: 'Structural error altering internal attendance registries.' });
-        }
-    },
-
-    /**
      * Safely soft-delete an event from the active roster
      */
     deleteSystemEvent: async (req, res) => {
@@ -537,15 +327,179 @@ const AdminEventController = {
             const deletedEvent = await AdminEventModel.deleteEvent(id, adminId);
             
             if (!deletedEvent) {
-                return res.status(404).json({ success: false, message: 'Event not found or already deleted.' });
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Event not found or already deleted.' 
+                });
             }
 
-            return res.status(200).json({ success: true, message: 'Event successfully removed from active system.' });
+            return res.status(200).json({ 
+                success: true, 
+                message: 'Event successfully removed from active system.',
+                data: deletedEvent
+            });
         } catch (error) {
             console.error('[Event Deletion Failure]:', error);
-            return res.status(500).json({ success: false, message: 'Backend failure during deletion sequence.' });
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Backend failure during deletion sequence.' 
+            });
         }
-    }
+    },
+
+    /**
+     * Generate Dynamic QR Token
+     */
+    generateDynamicQRToken: async (req, res) => {
+        try {
+            const { eventId } = req.params;
+            const { type = "checkin" } = req.query;
+            const adminId = req.user.userId;
+            if (!["checkin", "checkout"].includes(type)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid QR type."
+                });
+            }
+            const qr =
+                await AdminEventModel.generateQRCode(
+                    eventId,
+                    adminId,
+                    type
+                );
+            return res.status(200).json({
+                success: true,
+                data: qr
+            });
+        } catch (error) {
+            console.error("[Generate QR Error]", error);
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+    },
+
+    /**
+     * Manual Attendance Override
+     */
+    manualAttendanceUpdate: async (req, res) => {
+        try {
+            const { id: eventId } = req.params;
+            const adminId = req.user.userId;
+            const { volunteer_id, status, check_in_time, check_out_time, hours_logged, admin_remarks } = req.body;
+
+            if (!volunteer_id) {
+                return res.status(400).json({ success: false, message: 'volunteer_id is required.' });
+            }
+
+            const updatePayload = {
+                status: status || null,
+                check_in_time: check_in_time || null,
+                check_out_time: check_out_time || null,
+                hours_logged: hours_logged !== undefined ? hours_logged : null,
+                admin_remarks: admin_remarks || null
+            };
+
+            const updatedRecord = await AdminEventModel.updateManualAttendance(eventId, volunteer_id, updatePayload, adminId);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Attendance record updated successfully.',
+                data: updatedRecord
+            });
+        } catch (error) {
+            if (error.message === "ATTENDANCE_RECORD_NOT_FOUND") {
+                return res.status(404).json({ success: false, message: "No attendance record found for this volunteer at this event." });
+            }
+            console.error('[Manual Attendance Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to update attendance record.' });
+        }
+    },
+
+    /**
+     * List all structural events matching query parameters
+     */
+    listAllAdminEvents: async (req, res) => {
+        try {
+            const limit = parseInt(req.query.limit, 10) || 50;
+            const offset = parseInt(req.query.offset, 10) || 0;
+
+            const filters = {
+                search: req.query.search || null,
+                location: req.query.location || null,
+                category: req.query.category || null,
+                status: req.query.status || null,
+                sortBy: req.query.sortBy || 'created',
+                sortOrder: req.query.sortOrder || 'DESC',
+                limit,
+                offset
+            };
+
+            const { data, totalCount } = await AdminEventModel.getAllEvents(filters);
+            
+            return res.status(200).json({ 
+                success: true, 
+                pagination: {
+                    totalRecords: totalCount,
+                    pageSize: limit,
+                    currentPage: Math.floor(offset / limit) + 1,
+                    totalPages: Math.ceil(totalCount / limit)
+                },
+                data 
+            });
+        } catch (error) {
+            console.error('[Event Engine List Query Error]:', error);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Structural processing failure during listing retrieval.' 
+            });
+        }
+    },
+
+    /**
+     * Fetch complete unified entity data matrix for the details modal view
+     */
+    getEventDetailSummary: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const eventDetails = await AdminEventModel.getEventDetails(id);
+            
+            if (!eventDetails) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'The requested system entity does not exist or has been soft-deleted.' 
+                });
+            }
+
+            return res.status(200).json({ 
+                success: true, 
+                data: eventDetails 
+            });
+        } catch (error) {
+            console.error('[Details Modal Retrieval Crash]:', error);
+            
+            // Checking for invalid UUID syntax errors from PostgreSQL
+            if (error.code === '22P02') {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Invalid event ID format provided.' 
+                });
+            }
+
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Unified data structural collapse during retrieval operation.' 
+            });
+        }
+    },
+           
+    
+
+
+
+  
+
 };
 
 module.exports = AdminEventController;

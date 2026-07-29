@@ -334,103 +334,56 @@ const VolunteerEventModel = {
         try {
             await client.query("BEGIN");
 
-            const attendanceResult = await client.query(
-                `
-                SELECT
-                    attendance_id,
-                    status
-                FROM attendance
-                WHERE event_id = $1
-                AND volunteer_id = $2
-                FOR UPDATE
-                `,
-                [eventId, userId]
-            );
-
-            if (attendanceResult.rows.length === 0) {
-                throw new Error("You are not registered for this event.");
-            }
-
-            const attendance = attendanceResult.rows[0];
-
+            // ARCHITECTURE FIX: Lock events FIRST to prevent deadlocks with Admin APIs
             const eventResult = await client.query(
-                `
-                SELECT
-                    event_date,
-                    start_time,
-                    end_time,
-                    status
-                FROM events
-                WHERE event_id = $1
-                FOR UPDATE
-                `,
+                `SELECT event_date, start_time, end_time, status 
+                 FROM events WHERE event_id = $1 FOR UPDATE`,
                 [eventId]
             );
 
-            if (eventResult.rows.length === 0) {
-                throw new Error("Event not found.");
-            }
-
+            if (eventResult.rows.length === 0) throw new Error("Event not found.");
+            
             const event = eventResult.rows[0];
+            if (event.status !== "published") throw new Error("Check-in is unavailable for this event status.");
 
-            if (event.status !== "published") {
-                throw new Error("Check-in is unavailable.");
-            }
+            // Date processing boundary check
+            const eventEnd = new Date(`${event.event_date.toISOString().split("T")[0]}T${event.end_time}`);
+            if (new Date() > eventEnd) throw new Error("Event has already ended.");
 
-            const eventEnd = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.end_time}`
+            // Now lock attendance
+            const attendanceResult = await client.query(
+                `SELECT attendance_id, status 
+                 FROM attendance 
+                 WHERE event_id = $1 AND volunteer_id = $2 FOR UPDATE`,
+                [eventId, userId]
             );
-            if (new Date() > eventEnd) {
-                throw new Error("Event has already ended.");
-            }
-            if (attendance.status === "present") {
-                throw new Error("Already checked in.");
-            }
-            if (attendance.status !== "registered") {
-                throw new Error(
-                    `Cannot check in. Current status is '${attendance.status}'.`
-                );
-            }
+
+            if (attendanceResult.rows.length === 0) throw new Error("You are not registered for this event.");
+            
+            const attendance = attendanceResult.rows[0];
+            if (attendance.status === "present") throw new Error("Already checked in.");
+            if (attendance.status !== "registered") throw new Error(`Cannot check in. Current status is '${attendance.status}'.`);
+
+            // Execute Updates
             const updateResult = await client.query(
-                `
-                UPDATE attendance
-                SET
-                    status='present',
-                    check_in_time=NOW()
-                WHERE attendance_id=$1
-                RETURNING *
-                `,
+                `UPDATE attendance 
+                 SET status='present', check_in_time=CURRENT_TIMESTAMP 
+                 WHERE attendance_id=$1 RETURNING *`,
                 [attendance.attendance_id]
             );
+
             await client.query(
-                `
-                INSERT INTO event_timeline
-                (
-                    event_id,
-                    user_id,
-                    action
-                )
-                VALUES
-                (
-                    $1,
-                    $2,
-                    $3
-                )
-                `,
-                [
-                    eventId,
-                    userId,
-                    "Volunteer checked in"
-                ]
+                `INSERT INTO event_timeline (event_id, user_id, action) 
+                 VALUES ($1, $2, 'Volunteer checked in via QR')`,
+                [eventId, userId]
             );
+
             await client.query("COMMIT");
             return updateResult.rows[0];
-        }
-        catch (error) {
+        } catch (error) {
             await client.query("ROLLBACK");
             throw error;
-        }
-        finally {
+        } finally {
             client.release();
         }
     },
@@ -438,106 +391,56 @@ const VolunteerEventModel = {
     /**
      * Volunteer Checkout
      */
-    checkoutFromEvent: async (eventId, userId) => {
+    checkOutVolunteer: async (eventId, userId) => {
         const client = await db.connect();
-
         try {
             await client.query("BEGIN");
-            // Lock attendance record
-            const attendanceResult = await client.query(
-                `
-                SELECT
-                    attendance_id,
-                    status,
-                    check_in_time,
-                    check_out_time
-                FROM attendance
-                WHERE event_id = $1
-                AND volunteer_id = $2
-                FOR UPDATE
-                `,
-                [eventId, userId]
-            );
-            if (attendanceResult.rows.length === 0) {
-                throw new Error("You are not registered for this event.");
-            }
-            const attendance = attendanceResult.rows[0];
-            if (attendance.status !== "present") {
-                throw new Error("You are not currently checked in.");
-            }
-            if (attendance.check_out_time) {
-                throw new Error("You have already checked out.");
-            }
-            // Lock event row
+            
+            // ARCHITECTURE FIX: Lock events FIRST to prevent deadlocks
             const eventResult = await client.query(
-                `
-                SELECT
-                    status,
-                    event_date,
-                    start_time,
-                    end_time
-                FROM events
-                WHERE event_id = $1
-                FOR UPDATE
-                `,
+                `SELECT status, event_date, start_time, end_time 
+                 FROM events WHERE event_id = $1 FOR UPDATE`,
                 [eventId]
             );
-            if (eventResult.rows.length === 0) {
-                throw new Error("Event not found.");
-            }
+
+            if (eventResult.rows.length === 0) throw new Error("Event not found.");
             const event = eventResult.rows[0];
-            if (event.status !== "published") {
-                throw new Error("Checkout is unavailable for this event.");
-            }
+            
+            if (event.status !== "published") throw new Error("Checkout is unavailable for this event.");
+
             const now = new Date();
-            const eventStart = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.start_time}`
+            const eventStart = new Date(`${event.event_date.toISOString().split("T")[0]}T${event.start_time}`);
+            if (now < eventStart) throw new Error("Checkout is not available before the event starts.");
+
+            // Now lock attendance
+            const attendanceResult = await client.query(
+                `SELECT attendance_id, status, check_in_time, check_out_time 
+                 FROM attendance 
+                 WHERE event_id = $1 AND volunteer_id = $2 FOR UPDATE`,
+                [eventId, userId]
             );
-            const eventEnd = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.end_time}`
-            );
-            // Optional: prevent checkout before event starts
-            if (now < eventStart) {
-                throw new Error("Checkout is not available yet.");
-            }
-            const checkIn = new Date(attendance.check_in_time);
-            const hoursLogged =
-                Math.round(((now - checkIn) / (1000 * 60 * 60)) * 100) / 100;
+
+            if (attendanceResult.rows.length === 0) throw new Error("You are not registered for this event.");
+            
+            const attendance = attendanceResult.rows[0];
+            if (attendance.status !== "present") throw new Error("You must check in before checking out.");
+            if (attendance.check_out_time) throw new Error("You have already checked out.");
+
+            // ARCHITECTURE FIX: Removed manual hours math. 
+            // The Postgres trigger `calculate_attendance_hours` will automatically calculate it when check_out_time is set.
             const updateResult = await client.query(
-                `
-                UPDATE attendance
-                SET
-                    check_out_time = NOW(),
-                    hours_logged = $1
-                WHERE attendance_id = $2
-                RETURNING *
-                `,
-                [
-                    hoursLogged,
-                    attendance.attendance_id
-                ]
+                `UPDATE attendance 
+                 SET check_out_time = CURRENT_TIMESTAMP 
+                 WHERE attendance_id = $1 RETURNING *`,
+                [attendance.attendance_id]
             );
+
             await client.query(
-                `
-                INSERT INTO event_timeline
-                (
-                    event_id,
-                    user_id,
-                    action
-                )
-                VALUES
-                (
-                    $1,
-                    $2,
-                    $3
-                )
-                `,
-                [
-                    eventId,
-                    userId,
-                    "Volunteer checked out"
-                ]
+                `INSERT INTO event_timeline (event_id, user_id, action) 
+                 VALUES ($1, $2, 'Volunteer checked out via QR')`,
+                [eventId, userId]
             );
+
             await client.query("COMMIT");
             return updateResult.rows[0];
         } catch (error) {

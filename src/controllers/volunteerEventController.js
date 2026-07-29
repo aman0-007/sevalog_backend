@@ -56,24 +56,22 @@ const VolunteerEventController = {
                 return res.status(400).json({ success: false, message: 'QR token is required.' });
             }
 
-            // 1. Verify the Token (This automatically throws an error if expired)
             let decoded;
             try {
                 decoded = jwt.verify(qrToken, process.env.JWT_SECRET);
             } catch (err) {
                 return res.status(401).json({ 
                     success: false, 
-                    message:  err.name === 'TokenExpiredError'
-                    ? 'QR code has expired.'
-                    : 'Invalid QR code.'
+                    message: err.name === 'TokenExpiredError' ? 'QR code has expired.' : 'Invalid QR code.'
                 });
             }
 
-            const result =
-                await VolunteerEventModel.checkInVolunteer(
-                    decoded.eventId,
-                    userId
-            );
+            // SECURITY FIX: Ensure this is actually a check-in QR code
+            if (!decoded.eventId || decoded.action !== 'checkin') {
+                return res.status(400).json({ success: false, message: "Invalid QR code type for check-in." });
+            }
+
+            const result = await VolunteerEventModel.checkInVolunteer(decoded.eventId, userId);
 
             return res.status(200).json({ 
                 success: true, 
@@ -82,28 +80,47 @@ const VolunteerEventController = {
             });
 
         } catch (error) {
-            console.error('[QR Check-in]:', error);
+            console.error('[QR Check-in Error]:', error);
             return res.status(400).json({ success: false, message: error.message });
         }
     },
 
     checkout: async (req, res) => {
         try {
-            const { id: eventId } = req.params;
             const userId = req.user.userId;
+            const qrToken = req.body.token || req.body.qrToken;
 
-            const result = await VolunteerEventModel.checkoutFromEvent(eventId, userId);
+            if (!qrToken) {
+                return res.status(400).json({ success: false, message: "Checkout QR token is missing." });
+            }
 
+            let decoded;
+            try {
+                decoded = jwt.verify(qrToken, process.env.JWT_SECRET);
+            } catch (err) {
+                return res.status(401).json({
+                    success: false,
+                    message: err.name === "TokenExpiredError" ? "QR code has expired." : "Invalid QR code."
+                });
+            }
+
+            // SECURITY FIX: Ensure this is actually a checkout QR code
+            if (!decoded.eventId || decoded.action !== 'checkout') {
+                return res.status(400).json({ success: false, message: "Invalid QR code type for checkout." });
+            }
+
+            const attendance = await VolunteerEventModel.checkOutVolunteer(decoded.eventId, userId);
+            
             return res.status(200).json({
                 success: true,
-                message: 'Checkout successful.',
-                data: result
+                message: "Checkout completed successfully.",
+                data: attendance
             });
         } catch (error) {
-            console.error('[Volunteer Checkout Error]:', error);
-            return res.status(400).json({ success: false, message: error.message || 'Checkout failed.' });
+            console.error("[Volunteer Checkout Error]:", error);
+            return res.status(400).json({ success: false, message: error.message });
         }
-    },
+    }
 
 };
 

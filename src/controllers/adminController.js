@@ -1,101 +1,120 @@
 const AdminModel = require('../models/adminModel');
 
 const adminController = {
-    /**
-     * Handler to publish a new activity
-     */
-    createNewEvent: async (req, res, next) => {
-        try {
-            const adminId = req.user.userId;
-
-            if (!adminId) {
-                return res.status(403).json({ error: 'Access Denied: Admin authorization identity required.' });
-            }
-
-            const newEvent = await AdminModel.createEvent(adminId, req.body);
-            res.status(201).json({
-                message: 'Seva Event published successfully.',
-                data: newEvent
-            });
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    /**
-     * Handler to view all Seva events/activities
-     */
-    getAllEvents: async (req, res, next) => {
-        try {
-            const events = await AdminModel.getAllEventsAdmin();
-            res.status(200).json({ data: events });
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    /**
-     * Handler to compile a complete overview for a single event
-     */
-    getEventReport: async (req, res, next) => {
-        try {
-            const { eventId } = req.params;
-
-            if (!eventId) {
-                return res.status(400).json({ error: 'Event identity parameter is required.' });
-            }
-
-            const report = await AdminModel.getEventDetailsReport(eventId);
-            
-            if (!report) {
-                return res.status(404).json({ error: 'Requested seva event record could not be found.' });
-            }
-
-            res.status(200).json({ data: report });
-        } catch (error) {
-            next(error);
-        }
-    },
 
     /**
      * Handler for summary calculations displayed on admin dashboard load
      */
-    getSamithiOverview: async (req, res, next) => {
+    getAdminDashboardStats: async (req, res) => {
         try {
-            const overviewStats = await AdminModel.getGlobalSamithiStats();
-            res.status(200).json({ data: overviewStats });
+            const dashboardData = await AdminModel.getAdminDashboardStats();
+            
+            return res.status(200).json({ 
+                success: true,
+                message: "Admin dashboard stats retrieved successfully.",
+                data: dashboardData 
+            });
         } catch (error) {
-            next(error);
+            console.error('[Admin Dashboard Error]:', error);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Failed to retrieve administrative dashboard statistics.' 
+            });
         }
     },
 
     /**
-     * Handler to view all registered volunteers
+     * Handler to view all registered volunteers with pagination and filtering
      */
-    getAllVolunteers: async (req, res, next) => {
+    getAllVolunteers: async (req, res) => {
         try {
-            const volunteers = await AdminModel.getAllVolunteers();
-            res.status(200).json({ data: volunteers });
+            const limit = parseInt(req.query.limit, 10) || 50;
+            const offset = parseInt(req.query.offset, 10) || 0;
+
+            const filters = {
+                search: req.query.search || null,
+                status: req.query.status || null,
+                sortBy: req.query.sortBy || 'created',
+                sortOrder: req.query.sortOrder || 'DESC',
+                limit,
+                offset
+            };
+
+            const { data, totalCount } = await AdminVolunteerModel.getAllVolunteers(filters);
+            
+            return res.status(200).json({ 
+                success: true, 
+                pagination: {
+                    totalRecords: totalCount,
+                    pageSize: limit,
+                    currentPage: Math.floor(offset / limit) + 1,
+                    totalPages: Math.ceil(totalCount / limit)
+                },
+                data 
+            });
         } catch (error) {
-            next(error);
+            console.error('[Admin Get Volunteers Error]:', error);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Server error retrieving volunteer registry.' 
+            });
         }
     },
 
     /**
      * Handler to view a single volunteer's full profile
      */
-    getVolunteerProfile: async (req, res, next) => {
+    getVolunteerProfile: async (req, res) => {
         try {
-            const { userId } = req.params;
-            const profile = await AdminModel.getVolunteerDetails(userId);
+            const { id } = req.params;
+            const profile = await AdminVolunteerModel.getVolunteerDetails(id);
             
             if (!profile) {
-                return res.status(404).json({ error: 'Volunteer not found.' });
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Volunteer not found.' 
+                });
             }
 
-            res.status(200).json({ data: profile });
+            return res.status(200).json({ 
+                success: true, 
+                data: profile 
+            });
         } catch (error) {
-            next(error);
+            console.error('[Admin Volunteer Profile Error]:', error);
+            
+            // Handle invalid UUID formats gracefully
+            if (error.code === '22P02') {
+                return res.status(400).json({ success: false, message: 'Invalid volunteer ID format.' });
+            }
+
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Server error retrieving volunteer details.' 
+            });
+        }
+    },
+
+    /**
+     * Soft-delete a volunteer account
+     */
+    deactivateVolunteerAccount: async (req, res) => {
+        try {
+            const { id: volunteerId } = req.params;
+            const adminId = req.user.userId;
+
+            await AdminModel.deactivateVolunteer(volunteerId, adminId);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Volunteer account deactivated and withdrawn from upcoming events.'
+            });
+        } catch (error) {
+            if (error.message === "USER_NOT_FOUND") {
+                return res.status(404).json({ success: false, message: "Volunteer not found or already deactivated." });
+            }
+            console.error('[Deactivate Volunteer Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to deactivate volunteer.' });
         }
     }
 };

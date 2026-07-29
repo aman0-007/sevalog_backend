@@ -1,131 +1,84 @@
 const VolunteerModel = require('../models/volunteerModel');
 
 const volunteerController = {
+
+     /**
+     * Handler to get the volunteer's own profile
+     */
+    getMyProfile: async (req, res) => {
+        try {
+            const userId = req.user.userId;
+            const profile = await VolunteerModel.getProfile(userId);
+            
+            if (!profile) {
+                return res.status(404).json({ success: false, message: 'Profile not found.' });
+            }
+            
+            return res.status(200).json({ 
+                success: true, 
+                data: profile 
+            });
+        } catch (error) {
+            console.error('[Volunteer Profile Fetch Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to retrieve profile data.' });
+        }
+    },
+
     /**
      * Handler to update the volunteer profile fields
      */
-    updateMyProfile: async (req, res, next) => {
+    updateMyProfile: async (req, res) => {
         try {
-            // NOTE: In a complete system, req.user.id comes safely from an Auth Middleware decoding a JWT token.
-            // For now, we will expect the user_id to be sent or mocked.
             const userId = req.user.userId;
 
-            if (!userId) {
-                return res.status(400).json({ error: 'User ID authentication identifier is missing.' });
+            // Database Constraint Validation (chk_college_or_profession)
+            const { collegeName, profession } = req.body;
+            if (!collegeName && !profession) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Profile update failed: Either College Name or Profession must be provided." 
+                });
             }
 
             const updatedUser = await VolunteerModel.updateProfile(userId, req.body);
             
             if (!updatedUser) {
-                return res.status(404).json({ error: 'Volunteer profile not found or unauthorized.' });
+                return res.status(404).json({ success: false, message: 'Volunteer profile not found or inactive.' });
             }
 
-            res.status(200).json({
+            return res.status(200).json({
+                success: true,
                 message: 'Profile updated successfully.',
                 data: updatedUser
             });
         } catch (error) {
-            next(error); // Pass internal database errors down to our global error middleware
+            console.error('[Volunteer Profile Update Error]:', error);
+            
+            // Handle specific Postgres ENUM casting errors gracefully
+            if (error.code === '22P02') {
+                return res.status(400).json({ success: false, message: 'Invalid data format provided (e.g., Blood Group or Gender).' });
+            }
+            return res.status(500).json({ success: false, message: 'Server error during profile update.' });
         }
     },
 
     /**
      * Handler to get data for the volunteer home dashboard screen
      */
-    getMyDashboard: async (req, res, next) => {
+    getMyDashboard: async (req, res) => {
         try {
             const userId = req.user.userId;
-
-            if (!userId) {
-                return res.status(400).json({ error: 'User ID authentication identifier is missing.' });
-            }
-
-            const stats = await VolunteerModel.getDashboardStats(userId);
-            res.status(200).json({ data: stats });
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    /**
-     * Handler to fetch upcoming events
-     */
-    getEvents: async (req, res, next) => {
-        try {
-            const userId = req.user.userId; // Get user ID from the auth token
+            const dashboardData = await VolunteerModel.getDashboardData(userId);
             
-            if (!userId) {
-                return res.status(401).json({ error: 'Unauthorized user context.' });
-            }
-
-            const events = await VolunteerModel.getUpcomingEvents(userId);
-            res.status(200).json({ data: events });
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    /**
-     * Handler to submit an application for an event
-     */
-    applyToEvent: async (req, res, next) => {
-        try {
-            // We now get the user ID securely from the decoded JWT token!
-            const userId = req.user.userId; 
-            const { eventId } = req.body;
-
-            if (!eventId) {
-                return res.status(400).json({ error: 'Event ID is required.' });
-            }
-
-            const application = await VolunteerModel.applyForEvent(userId, eventId);
-            
-            res.status(201).json({
-                message: 'Successfully applied for the event. Status is pending.',
-                data: application
+            return res.status(200).json({ 
+                success: true, 
+                data: dashboardData 
             });
         } catch (error) {
-            // PostgreSQL throws error code 23505 if a unique constraint is violated (applying twice)
-            if (error.code === '23505') {
-                return res.status(409).json({ error: 'You have already applied for this event.' });
-            }
-            next(error); // Passes capacity trigger errors (from our database trigger) to the frontend
+            console.error('[Volunteer Dashboard Fetch Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to retrieve dashboard data.' });
         }
-    },
-
-    /**
-     * Handler to fetch all events for the My Events page
-     */
-    getAllEventsList: async (req, res, next) => {
-        try {
-            const userId = req.user.userId;
-            
-            if (!userId) {
-                return res.status(401).json({ error: 'Unauthorized user context.' });
-            }
-
-            const events = await VolunteerModel.getAllEventsWithUserStatus(userId);
-            res.status(200).json({ data: events });
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    /**
-     * Handler to get the volunteer's own profile
-     */
-    getMyProfile: async (req, res, next) => {
-        try {
-            const userId = req.user.userId;
-            const profile = await VolunteerModel.getProfile(userId);
-            
-            if (!profile) return res.status(404).json({ error: 'Profile not found.' });
-            
-            res.status(200).json({ data: profile });
-        } catch (error) {
-            next(error);
-        }
-    },
+    }
 };
 
 module.exports = volunteerController;
