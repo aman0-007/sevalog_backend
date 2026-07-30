@@ -19,7 +19,7 @@ const publicRoutes = require('./routes/publicRoutes');
 const app = express();
 
 // Security & Logging Middlewares
-app.use(helmet());
+app.use(helmet({contentSecurityPolicy: false}));
 app.use(cors());
 app.use(morgan('dev'));
 
