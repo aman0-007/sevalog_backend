@@ -40,7 +40,7 @@ const swaggerOptions = {
         },
         servers: [
             {
-                url: 'http://localhost:5000', // Matches your PORT in server.js
+                url: '/',
                 description: 'Development Server',
             },
         ],
