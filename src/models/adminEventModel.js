@@ -133,6 +133,7 @@ const AdminEventModel = {
                 UPDATE events
                 SET
                     status='published',
+                    registration_open=TRUE,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE event_id=$1
                 RETURNING *;
