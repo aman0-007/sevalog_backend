@@ -98,10 +98,10 @@ router.post('/login', authController.login);
  *           schema:
  *             type: object
  *             required:
- *               - oldPassword
+ *               - currentPassword
  *               - newPassword
  *             properties:
- *               oldPassword:
+ *               currentPassword:
  *                 type: string
  *                 example: "SecurePass123!"
  *               newPassword:
@@ -111,7 +111,7 @@ router.post('/login', authController.login);
  *       200:
  *         description: Password updated successfully
  *       400:
- *         description: Incorrect old password
+ *         description: Incorrect current password
  *       401:
  *         description: Unauthorized (Token missing or invalid)
  *       500:

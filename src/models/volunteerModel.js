@@ -25,7 +25,7 @@ const VolunteerModel = {
      */
     updateProfile: async (userId, profileData) => {
         const {
-            firstName, lastName, phoneNumber, dateOfBirth, gender, bloodGroup,
+            firstName, lastName, dateOfBirth, gender, bloodGroup,
             residentialAddress, city, state, pincode,
             emergencyContactName, emergencyContactRelation, emergencyContactNumber, medicalConditions,
             educationLevel, collegeName, profession,
@@ -38,35 +38,48 @@ const VolunteerModel = {
             SET 
                 first_name = COALESCE($1, first_name), 
                 last_name = COALESCE($2, last_name), 
-                phone_number = COALESCE($3, phone_number), 
-                date_of_birth = $4, 
-                gender = $5, 
-                blood_group = $6, 
-                residential_address = $7, 
-                city = COALESCE($8, city), 
-                state = COALESCE($9, state), 
-                pincode = $10, 
-                emergency_contact_name = $11, 
-                emergency_contact_relation = $12, 
-                emergency_contact_number = $13, 
-                medical_conditions = $14, 
-                education_level = $15, 
-                college_name = $16, 
-                profession = $17, 
-                skills = $18::text[], 
-                languages_spoken = $19::text[], 
-                interested_activities = $20::text[]
-            WHERE user_id = $21 AND role = 'volunteer' AND is_active = TRUE
+                date_of_birth = $3, 
+                gender = $4, 
+                blood_group = $5, 
+                residential_address = $6, 
+                city = COALESCE($7, city), 
+                state = COALESCE($8, state), 
+                pincode = $9, 
+                emergency_contact_name = $10, 
+                emergency_contact_relation = $11, 
+                emergency_contact_number = $12, 
+                medical_conditions = $13, 
+                education_level = $14, 
+                college_name = $15, 
+                profession = $16, 
+                skills = $17::text[], 
+                languages_spoken = $18::text[], 
+                interested_activities = $19::text[]
+            WHERE user_id = $20 AND role = 'volunteer' AND is_active = TRUE
             RETURNING user_id, first_name, last_name, email;
         `;
         // Note: updated_at is handled automatically by your database trigger.
 
         const values = [
-            firstName, lastName, phoneNumber, dateOfBirth || null, gender || null, bloodGroup || null,
-            residentialAddress || null, city || 'Mumbai', state || 'Maharashtra', pincode || null, 
-            emergencyContactName || null, emergencyContactRelation || null, emergencyContactNumber || null, 
-            medicalConditions || null, educationLevel || null, collegeName || null, profession || null, 
-            skills || '{}', languagesSpoken || '{}', interestedActivities || '{}', 
+            firstName || null, 
+            lastName || null, 
+            dateOfBirth || null, 
+            gender || null, 
+            bloodGroup || null,
+            residentialAddress || null, 
+            city || 'Mumbai', 
+            state || 'Maharashtra', 
+            pincode || null, 
+            emergencyContactName || null, 
+            emergencyContactRelation || null, 
+            emergencyContactNumber || null, 
+            medicalConditions || null, 
+            educationLevel || null, 
+            collegeName || null, 
+            profession || null, 
+            skills || [], 
+            languagesSpoken || [], 
+            interestedActivities || [], 
             userId
         ];
 
