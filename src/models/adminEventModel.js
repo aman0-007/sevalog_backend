@@ -522,109 +522,62 @@ const AdminEventModel = {
         try {
             await client.query("BEGIN");
             const eventResult = await client.query(
-                `
-                SELECT
-                    event_id,
-                    status,
-                    event_date,
-                    start_time,
-                    end_time
-                FROM events
-                WHERE event_id = $1
-                AND is_deleted = FALSE
-                FOR UPDATE
-                `,
+                `SELECT event_id, status, event_date, start_time, end_time 
+                 FROM events WHERE event_id = $1 AND is_deleted = FALSE FOR UPDATE`,
                 [eventId]
             );
-            if (eventResult.rows.length === 0) {
-                throw new Error("Event not found.");
-            }
+
+            if (eventResult.rows.length === 0) throw new Error("Event not found.");
+            
             const event = eventResult.rows[0];
-            if (event.status !== "published") {
-                throw new Error(
-                    "QR code can only be generated for published events."
-                );
-            }
+            if (event.status !== "published") throw new Error("QR code can only be generated for published events.");
+
             const now = new Date();
-            const eventStart = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.start_time}`
-            );
-            const eventEnd = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.end_time}`
-            );
+            
+            // FIX: Safely extract local YYYY-MM-DD without UTC shifting
+            const evDate = event.event_date;
+            const yyyy = evDate.getFullYear();
+            const mm = String(evDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(evDate.getDate()).padStart(2, '0');
+            const localDateStr = `${yyyy}-${mm}-${dd}`;
+
+            const eventStart = new Date(`${localDateStr}T${event.start_time}`);
+            const eventEnd = new Date(`${localDateStr}T${event.end_time}`);
+
             if (type === "checkin") {
-                const allowedStart =
-                    new Date(
-                        eventStart.getTime() -
-                        (30 * 60 * 1000)
-                    );
+                const allowedStart = new Date(eventStart.getTime() - (30 * 60 * 1000));
                 if (now < allowedStart) {
-                    const mins = Math.ceil(
-                        (allowedStart - now) / 60000
-                    );
-                    throw new Error(
-                        `Check-in opens 30 minutes before the event. Please wait ${mins} minute(s).`
-                    );
+                    const mins = Math.ceil((allowedStart - now) / 60000);
+                    throw new Error(`Check-in opens 30 minutes before the event. Please wait ${mins} minute(s).`);
                 }
-            }
-            else {
+            } else {
                 if (now < eventStart) {
-                    throw new Error(
-                        "Checkout is not available before the event starts."
-                    );
+                    throw new Error("Checkout is not available before the event starts.");
                 }
             }
+            
             if (now > eventEnd) {
-                throw new Error(
-                    "Event has already ended."
-                );
+                throw new Error("Event has already ended.");
             }
+
             const token = jwt.sign(
-                {
-                    eventId,
-                    action: type,
-                    nonce: crypto.randomUUID()
-                },
+                { eventId, action: type, nonce: crypto.randomUUID() },
                 process.env.JWT_SECRET,
-                {
-                    expiresIn: "30s"
-                }
+                { expiresIn: "30s" }
             );
+
             await client.query(
-                `
-                INSERT INTO event_timeline
-                (
-                    event_id,
-                    user_id,
-                    action
-                )
-                VALUES
-                (
-                    $1,
-                    $2,
-                    $3
-                )
-                `,
-                [
-                    eventId,
-                    adminId,
-                    `${type === "checkin"
-                        ? "Check-in"
-                        : "Checkout"} QR Generated`
-                ]
+                `INSERT INTO event_timeline (event_id, user_id, action) VALUES ($1, $2, $3)`,
+                [eventId, adminId, `${type === "checkin" ? "Check-in" : "Checkout"} QR Generated`]
             );
+
             await client.query("COMMIT");
-            return {
-                type,
-                token,
-                refreshIntervalMs: 25000
-            };
-        }
-        catch(error){
+            return { type, token, refreshIntervalMs: 25000 };
+            
+        } catch(error) {
             await client.query("ROLLBACK");
             throw error;
-        }
-        finally{
+        } finally {
             client.release();
         }
     },
