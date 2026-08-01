@@ -546,18 +546,27 @@ const AdminEventModel = {
 
             if (type === "checkin") {
                 const allowedStart = new Date(eventStart.getTime() - (30 * 60 * 1000));
+                
                 if (now < allowedStart) {
                     const mins = Math.ceil((allowedStart - now) / 60000);
                     throw new Error(`Check-in opens 30 minutes before the event. Please wait ${mins} minute(s).`);
                 }
-            } else {
+                
+                // Strictly close check-in when the event ends
+                if (now > eventEnd) {
+                    throw new Error("Check-in is no longer available because the event has ended.");
+                }
+                
+            } else if (type === "checkout") {
                 if (now < eventStart) {
                     throw new Error("Checkout is not available before the event starts.");
                 }
-            }
-            
-            if (now > eventEnd) {
-                throw new Error("Event has already ended.");
+                
+                // Strictly close check-out 2 hours after the event ends
+                const checkoutDeadline = new Date(eventEnd.getTime() + (2 * 60 * 60 * 1000));
+                if (now > checkoutDeadline) {
+                    throw new Error("Checkout window has closed. It is only available up to 2 hours after the event ends.");
+                }
             }
 
             const token = jwt.sign(
