@@ -348,8 +348,15 @@ const VolunteerEventModel = {
             const event = eventResult.rows[0];
             if (event.status !== "published") throw new Error("Check-in is unavailable for this event status.");
 
+            // FIX: Safely extract local YYYY-MM-DD without UTC shifting
+            const evDate = event.event_date;
+            const yyyy = evDate.getFullYear();
+            const mm = String(evDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(evDate.getDate()).padStart(2, '0');
+            const localDateStr = `${yyyy}-${mm}-${dd}`;
+
             // Date processing boundary check
-            const eventEnd = new Date(`${event.event_date.toISOString().split("T")[0]}T${event.end_time}`);
+            const eventEnd = new Date(`${localDateStr}T${event.end_time}`);
             if (new Date() > eventEnd) throw new Error("Event has already ended.");
 
             // Now lock attendance
@@ -410,9 +417,24 @@ const VolunteerEventModel = {
             
             if (event.status !== "published") throw new Error("Checkout is unavailable for this event.");
 
+            // FIX: Safely extract local YYYY-MM-DD without UTC shifting
+            const evDate = event.event_date;
+            const yyyy = evDate.getFullYear();
+            const mm = String(evDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(evDate.getDate()).padStart(2, '0');
+            const localDateStr = `${yyyy}-${mm}-${dd}`;
+
             const now = new Date();
-            const eventStart = new Date(`${event.event_date.toISOString().split("T")[0]}T${event.start_time}`);
+            const eventStart = new Date(`${localDateStr}T${event.start_time}`);
+            const eventEnd = new Date(`${localDateStr}T${event.end_time}`);
+            
             if (now < eventStart) throw new Error("Checkout is not available before the event starts.");
+            
+            // Apply the same 2-hour limit from the QR Generator for absolute security
+            const checkoutDeadline = new Date(eventEnd.getTime() + (2 * 60 * 60 * 1000));
+            if (now > checkoutDeadline) {
+                throw new Error("Checkout window has closed. It is only available up to 2 hours after the event ends.");
+            }
 
             // Now lock attendance
             const attendanceResult = await client.query(
