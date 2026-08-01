@@ -754,6 +754,7 @@ const AdminEventModel = {
                 CASE 
                     WHEN e.status IN ('cancelled', 'archived', 'draft') THEN e.status::text
                     WHEN CURRENT_DATE < e.event_date THEN 'upcoming'
+                    WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME < e.start_time THEN 'upcoming'                    
                     WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME BETWEEN e.start_time AND e.end_time THEN 'ongoing'
                     WHEN CURRENT_DATE > e.event_date OR (CURRENT_DATE = e.event_date AND CURRENT_TIME > e.end_time) THEN 'completed'
                     ELSE e.status::text
