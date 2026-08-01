@@ -254,8 +254,9 @@ const VolunteerEventModel = {
                 `${event.event_date.toISOString().split("T")[0]}T${event.start_time}`
             );
 
-            if (new Date() >= eventStart) {
-                throw new Error("Cannot withdraw after the event has started.");
+            const cutoffTime = new Date(eventStart.getTime() - (30 * 60000));
+            if (new Date() >= cutoffTime) {
+                throw new Error("Cannot withdraw within 30 minutes of the event start time.");
             }
 
             const attendanceResult = await client.query(
