@@ -144,9 +144,10 @@ const VolunteerEventModel = {
                 throw new Error('The registration deadline for this event has passed.');
             }
 
-            const eventStart = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.start_time}`
-            );
+            const yyyy = event.event_date.getFullYear();
+            const mm = String(event.event_date.getMonth() + 1).padStart(2, '0');
+            const dd = String(event.event_date.getDate()).padStart(2, '0');
+            const eventStart = new Date(`${yyyy}-${mm}-${dd}T${event.start_time}`);
 
             if (new Date() >= eventStart) {
                 throw new Error("Registration has closed. The event has already started.");
