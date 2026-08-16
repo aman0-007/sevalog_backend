@@ -4,15 +4,19 @@ const VolunteerTaskModel = {
     getVolunteerTasks: async (userId, filters = {}) => {
         const { limit = 50, offset = 0 } = filters;
         
-        // Show tasks assigned to them OR public tasks
         const queryText = `
-            SELECT t.*, e.title AS event_title, u.first_name AS creator_first, u.last_name AS creator_last
+            SELECT 
+                t.*, 
+                e.title AS event_title, 
+                u.first_name AS creator_first, u.last_name AS creator_last,
+                a.first_name AS assignee_first, a.last_name AS assignee_last
             FROM tasks t
             LEFT JOIN events e ON t.event_id = e.event_id
             JOIN users u ON t.created_by = u.user_id
+            LEFT JOIN users a ON t.assigned_to = a.user_id
             WHERE t.is_deleted = FALSE AND (t.assigned_to = $1 OR t.is_public = TRUE)
             ORDER BY 
-                CASE WHEN t.assigned_to = $1 THEN 1 ELSE 2 END, -- Bring their tasks to the top
+                CASE WHEN t.assigned_to = $1 THEN 1 ELSE 2 END,
                 t.created_at DESC
             LIMIT $2 OFFSET $3
         `;
