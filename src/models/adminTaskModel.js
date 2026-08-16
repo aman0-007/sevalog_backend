@@ -41,18 +41,19 @@ const AdminTaskModel = {
     },
 
     /**
-     * Update task details (title, desc, deadline, etc.)
+     * Update task details (Only CREATOR can do this)
      */
     updateTask: async (taskId, updateData, adminId) => {
         const client = await db.connect();
         try {
             await client.query("BEGIN");
 
-            const taskCheck = await client.query(`SELECT status FROM tasks WHERE task_id = $1 AND is_deleted = FALSE`, [taskId]);
+            const taskCheck = await client.query(`SELECT status, created_by FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
+            
             if (taskCheck.rows.length === 0) throw new Error("TASK_NOT_FOUND");
-            if (taskCheck.rows[0].status === 'completed' || taskCheck.rows[0].status === 'cancelled') {
-                throw new Error("INVALID_TASK_STATUS");
-            }
+            // NEW: Strict Read-Only check for other admins
+            if (taskCheck.rows[0].created_by !== adminId) throw new Error("UNAUTHORIZED_ADMIN"); 
+            if (taskCheck.rows[0].status === 'completed' || taskCheck.rows[0].status === 'cancelled') throw new Error("INVALID_TASK_STATUS");
 
             const setClauses = [];
             const values = [];
@@ -67,16 +68,10 @@ const AdminTaskModel = {
             if (setClauses.length === 0) throw new Error("NO_DATA_PROVIDED");
             values.push(taskId);
 
-            const updateQuery = `
-                UPDATE tasks SET ${setClauses.join(", ")} 
-                WHERE task_id = $${paramIndex} RETURNING *;
-            `;
+            const updateQuery = `UPDATE tasks SET ${setClauses.join(", ")} WHERE task_id = $${paramIndex} RETURNING *;`;
             const { rows } = await client.query(updateQuery, values);
 
-            await client.query(
-                `INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`,
-                [taskId, adminId, 'Task details updated by Admin']
-            );
+            await client.query(`INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`, [taskId, adminId, 'Task details updated by Creator']);
 
             await client.query("COMMIT");
             return rows[0];
@@ -89,25 +84,26 @@ const AdminTaskModel = {
     },
 
     /**
-     * Update Task Status & Remarks (Verify / Cancel)
+     * Update Task Status & Remarks (Verify / Cancel) - Only CREATOR can do this
      */
     updateTaskStatus: async (taskId, status, admin_remarks, adminId) => {
         const client = await db.connect();
         try {
             await client.query("BEGIN");
 
+            const taskCheck = await client.query(`SELECT created_by FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
+            
+            if (taskCheck.rows.length === 0) throw new Error("TASK_NOT_FOUND");
+            // NEW: Strict Read-Only check for other admins
+            if (taskCheck.rows[0].created_by !== adminId) throw new Error("UNAUTHORIZED_ADMIN");
+
             const { rows } = await client.query(
-                `UPDATE tasks SET status = $1, admin_remarks = COALESCE($2, admin_remarks)
-                 WHERE task_id = $3 AND is_deleted = FALSE RETURNING *`,
+                `UPDATE tasks SET status = $1, admin_remarks = COALESCE($2, admin_remarks), updated_at = NOW()
+                 WHERE task_id = $3 RETURNING *`,
                 [status, admin_remarks || null, taskId]
             );
 
-            if (rows.length === 0) throw new Error("TASK_NOT_FOUND");
-
-            await client.query(
-                `INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`,
-                [taskId, adminId, `Task status changed to ${status}`]
-            );
+            await client.query(`INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`, [taskId, adminId, `Task status verified/changed to ${status}`]);
 
             await client.query("COMMIT");
             return rows[0];
@@ -120,29 +116,62 @@ const AdminTaskModel = {
     },
 
     /**
-     * Soft Delete a task
+     * Soft Delete a task - Only CREATOR can do this
      */
     deleteTask: async (taskId, adminId) => {
         const client = await db.connect();
         try {
             await client.query('BEGIN');
+            
+            const taskCheck = await client.query(`SELECT created_by FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
+            if (taskCheck.rows.length === 0) throw new Error("TASK_NOT_FOUND");
+            if (taskCheck.rows[0].created_by !== adminId) throw new Error("UNAUTHORIZED_ADMIN");
+
             const { rows } = await client.query(
                 `UPDATE tasks SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP, deleted_by = $2, status = 'cancelled'
-                 WHERE task_id = $1 AND is_deleted = FALSE RETURNING *`,
+                 WHERE task_id = $1 RETURNING *`,
                 [taskId, adminId]
             );
 
-            if (rows.length === 0) throw new Error("TASK_NOT_FOUND");
-
-            await client.query(
-                `INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`,
-                [taskId, adminId, 'Task soft-deleted by Admin']
-            );
+            await client.query(`INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`, [taskId, adminId, 'Task deleted by Creator']);
 
             await client.query('COMMIT');
             return rows[0];
         } catch (error) {
             await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+
+    /**
+     * NEW: Admin acting as ASSIGNEE updating progress
+     */
+    adminUpdateTaskProgress: async (taskId, adminId, status, volunteer_remarks) => {
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+
+            const checkTask = await client.query(`SELECT assigned_to, status FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
+            
+            if (checkTask.rows.length === 0) throw new Error("TASK_NOT_FOUND");
+            // Verify this admin is the one assigned to do the work
+            if (checkTask.rows[0].assigned_to !== adminId) throw new Error("UNAUTHORIZED_ASSIGNEE");
+            if (['completed', 'cancelled'].includes(checkTask.rows[0].status)) throw new Error("TASK_FROZEN");
+
+            const { rows } = await client.query(
+                `UPDATE tasks SET status = $1, volunteer_remarks = COALESCE($2, volunteer_remarks), updated_at = NOW() 
+                 WHERE task_id = $3 RETURNING *`,
+                [status, volunteer_remarks || null, taskId]
+            );
+
+            await client.query(`INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`, [taskId, adminId, `Assignee updated progress to ${status}`]);
+
+            await client.query("COMMIT");
+            return rows[0];
+        } catch (error) {
+            await client.query("ROLLBACK");
             throw error;
         } finally {
             client.release();

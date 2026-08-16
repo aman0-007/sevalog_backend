@@ -541,4 +541,10 @@ router.patch('/tasks/:id/status', AdminTaskController.changeTaskStatus);
  */
 router.delete('/tasks/:id', AdminTaskController.deleteTask);
 
+/**
+ * @route   PATCH /api/admin/tasks/:id/progress
+ * @desc    Update progress if the admin is the assignee
+ */
+router.patch('/tasks/:id/progress', AdminTaskController.updateMyProgress);
+
 module.exports = router;

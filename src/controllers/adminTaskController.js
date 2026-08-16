@@ -1,6 +1,7 @@
 const AdminTaskModel = require('../models/adminTaskModel');
 
 const AdminTaskController = {
+
     createNewTask: async (req, res) => {
         try {
             const { title, assigned_to, deadline } = req.body;
@@ -42,6 +43,7 @@ const AdminTaskController = {
         } catch (error) {
             if (error.message === "TASK_NOT_FOUND") return res.status(404).json({ success: false, message: "Task not found." });
             if (error.message === "INVALID_TASK_STATUS") return res.status(400).json({ success: false, message: "Cannot edit completed or cancelled tasks." });
+            if (error.message === "UNAUTHORIZED_ADMIN") return res.status(403).json({ success: false, message: "Access Denied: Only the creator of this task can modify or verify it." });
             console.error('[Update Task Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to update task.' });
         }
@@ -62,6 +64,7 @@ const AdminTaskController = {
             return res.status(200).json({ success: true, message: `Task marked as ${status}.`, data: updatedTask });
         } catch (error) {
             if (error.message === "TASK_NOT_FOUND") return res.status(404).json({ success: false, message: "Task not found." });
+            if (error.message === "UNAUTHORIZED_ADMIN") return res.status(403).json({ success: false, message: "Access Denied: Only the creator of this task can modify or verify it." });
             console.error('[Task Status Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to change task status.' });
         }
@@ -75,8 +78,31 @@ const AdminTaskController = {
             return res.status(200).json({ success: true, message: 'Task deleted successfully.' });
         } catch (error) {
             if (error.message === "TASK_NOT_FOUND") return res.status(404).json({ success: false, message: "Task not found." });
+            if (error.message === "UNAUTHORIZED_ADMIN") return res.status(403).json({ success: false, message: "Access Denied: Only the creator of this task can modify or verify it." });
             console.error('[Delete Task Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to delete task.' });
+        }
+    },
+
+    updateMyProgress: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const adminId = req.user.userId;
+            const { status, volunteer_remarks } = req.body;
+
+            if (!['in_progress', 'pending_verification'].includes(status)) {
+                return res.status(400).json({ success: false, message: "You can only mark tasks as 'in_progress' or 'pending_verification'." });
+            }
+
+            const updatedTask = await AdminTaskModel.adminUpdateTaskProgress(id, adminId, status, volunteer_remarks);
+            return res.status(200).json({ success: true, message: 'Progress updated successfully.', data: updatedTask });
+        } catch (error) {
+            if (error.message === "TASK_NOT_FOUND") return res.status(404).json({ success: false, message: "Task not found." });
+            if (error.message === "UNAUTHORIZED_ASSIGNEE") return res.status(403).json({ success: false, message: "Only the assigned user can update task progress." });
+            if (error.message === "TASK_FROZEN") return res.status(400).json({ success: false, message: "Task is already closed." });
+            
+            console.error('[Admin Assignee Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to update progress.' });
         }
     },
 
