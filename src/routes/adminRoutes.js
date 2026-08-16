@@ -4,6 +4,7 @@ const router = express.Router();
 // Import both Controllers
 const adminController = require('../controllers/adminController'); 
 const AdminEventController = require('../controllers/adminEventController');
+const AdminTaskController = require('../controllers/adminTaskController');
 
 // Import Auth Middleware
 const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
@@ -464,5 +465,80 @@ router.delete('/volunteers/:id', adminController.deactivateVolunteerAccount);
  *         description: Dashboard stats retrieved successfully
  */
 router.get('/dashboard-stats', adminController.getAdminDashboardStats);
+
+
+// ============================================================================
+// TASK MANAGEMENT (Core CRUD)
+// ============================================================================
+
+/**
+ * @route   POST /api/admin/tasks
+ * @desc    Create a new task assigned to a volunteer
+ * @swagger
+ * /api/admin/tasks:
+ *   post:
+ *     summary: Create task
+ *     tags: [Admin Tasks]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, assigned_to]
+ *             properties:
+ *               event_id: { type: string, format: uuid }
+ *               assigned_to: { type: string, format: uuid }
+ *               title: { type: string }
+ *               description: { type: string }
+ *               deadline: { type: string, format: date-time }
+ *               is_public: { type: boolean, default: true }
+ */
+router.post('/tasks', AdminTaskController.createNewTask);
+
+/**
+ * @route   GET /api/admin/tasks
+ * @desc    Get all tasks with filtering
+ * @swagger
+ * /api/admin/tasks:
+ *   get:
+ *     summary: List tasks
+ *     tags: [Admin Tasks]
+ *     parameters:
+ *       - in: query
+ *         name: event_id
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: assigned_to
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: status
+ *         schema: { type: string }
+ */
+router.get('/tasks', AdminTaskController.listTasks);
+
+/**
+ * @route   GET /api/admin/tasks/:id
+ * @desc    Get task details and timeline
+ */
+router.get('/tasks/:id', AdminTaskController.getTaskDetails);
+
+/**
+ * @route   PUT /api/admin/tasks/:id
+ * @desc    Edit task details
+ */
+router.put('/tasks/:id', AdminTaskController.updateTaskDetails);
+
+/**
+ * @route   PATCH /api/admin/tasks/:id/status
+ * @desc    Verify or change status (Complete, Cancel, etc.)
+ */
+router.patch('/tasks/:id/status', AdminTaskController.changeTaskStatus);
+
+/**
+ * @route   DELETE /api/admin/tasks/:id
+ * @desc    Soft-delete a task
+ */
+router.delete('/tasks/:id', AdminTaskController.deleteTask);
 
 module.exports = router;

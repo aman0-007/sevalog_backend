@@ -4,6 +4,7 @@ const router = express.Router();
 // Import Controllers
 const volunteerController = require('../controllers/volunteerController');           // Handles Profile & Dashboard
 const volunteerEventController = require('../controllers/volunteerEventController'); // Handles Events & Registration
+const volunteerTaskController = require('../controllers/volunteerTaskController');
 
 // Import Middleware
 const { verifyToken, isVolunteer } = require('../middlewares/authMiddleware');
@@ -227,5 +228,42 @@ router.post('/events/check-in', volunteerEventController.checkin);
  *         description: Unauthorized
  */
 router.post('/events/check-out', volunteerEventController.checkout);
+
+
+// ==========================================
+// VOLUNTEER TASK MANAGEMENT
+// ==========================================
+
+/**
+ * @route   GET /api/volunteer/tasks
+ * @desc    View assigned tasks and public tasks
+ * @swagger
+ * /api/volunteer/tasks:
+ *   get:
+ *     summary: Get tasks
+ *     tags: [Volunteer Tasks]
+ */
+router.get('/tasks', volunteerTaskController.listTasks);
+
+/**
+ * @route   PATCH /api/volunteer/tasks/:id/progress
+ * @desc    Update task status (in_progress, pending_verification) & add remarks
+ * @swagger
+ * /api/volunteer/tasks/{id}/progress:
+ *   patch:
+ *     summary: Update task progress
+ *     tags: [Volunteer Tasks]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status: { type: string, enum: [in_progress, pending_verification] }
+ *               volunteer_remarks: { type: string }
+ */
+router.patch('/tasks/:id/progress', volunteerTaskController.updateProgress);
 
 module.exports = router;
