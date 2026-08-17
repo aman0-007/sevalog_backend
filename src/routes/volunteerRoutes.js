@@ -111,6 +111,41 @@ router.get('/dashboard', volunteerController.getMyDashboard);
  */
 router.get('/feed', volunteerController.getCommunityFeed);
 
+/**
+ * @route   GET /api/volunteer/leaderboard
+ * @desc    Get the top volunteers ranked by verified hours
+ * @swagger
+ * /api/volunteer/leaderboard:
+ *   get:
+ *     summary: Get community leaderboard
+ *     description: Retrieves the top volunteers ranked by their total logged hours. Can be filtered globally, by city, or by college.
+ *     tags: [Volunteer Dashboard]
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [global, city, college]
+ *           default: global
+ *         description: The grouping filter for the leaderboard
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Maximum number of volunteers to return
+ *     responses:
+ *       200:
+ *         description: Leaderboard retrieved successfully
+ *       400:
+ *         description: Invalid filter type provided
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/leaderboard', volunteerController.getLeaderboard);
+
 // ==========================================
 // VOLUNTEER CERTIFICATE ROUTES
 // ==========================================

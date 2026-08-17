@@ -138,6 +138,38 @@ const volunteerController = {
             console.error('[Community Feed Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to fetch community feed.' });
         }
+    },
+
+    /**
+     * Handler to get the community leaderboard
+     */
+    getLeaderboard: async (req, res) => {
+        try {
+            // Extract query parameters with fallbacks
+            const type = req.query.type || 'global';
+            const limit = parseInt(req.query.limit, 10) || 10;
+
+            // Validate the 'type' parameter to prevent unexpected behavior
+            if (!['global', 'city', 'college'].includes(type)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Invalid leaderboard type. Must be 'global', 'city', or 'college'." 
+                });
+            }
+
+            const leaderboardData = await VolunteerModel.getLeaderboard(type, limit);
+            
+            return res.status(200).json({ 
+                success: true, 
+                data: leaderboardData 
+            });
+        } catch (error) {
+            console.error('[Leaderboard Fetch Error]:', error);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Failed to fetch leaderboard data.' 
+            });
+        }
     }
 };
 

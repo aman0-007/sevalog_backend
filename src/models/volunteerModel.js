@@ -201,6 +201,39 @@ const VolunteerModel = {
         `;
         const { rows } = await db.query(query, [limit]);
         return rows;
+    },
+
+    /**
+     * Get the leaderboard based on filter type (global, city, college)
+     */
+    getLeaderboard: async (type = 'global', limit = 10) => {
+        let groupByColumn = '';
+        let selectTag = '';
+
+        if (type === 'city') {
+            groupByColumn = 'AND u.city IS NOT NULL';
+            selectTag = 'u.city AS group_tag,';
+        } else if (type === 'college') {
+            groupByColumn = 'AND u.college_name IS NOT NULL';
+            selectTag = 'u.college_name AS group_tag,';
+        } else {
+            selectTag = "'Global' AS group_tag,";
+        }
+
+        const queryText = `
+            SELECT 
+                u.first_name, 
+                LEFT(u.last_name, 1) AS last_name_initial,
+                ${selectTag}
+                vds.total_hours_logged AS total_hours
+            FROM volunteer_dashboard_stats vds
+            JOIN users u ON vds.user_id = u.user_id
+            WHERE u.role = 'volunteer' AND u.is_active = TRUE ${groupByColumn}
+            ORDER BY vds.total_hours_logged DESC
+            LIMIT $1;
+        `;
+        const { rows } = await db.query(queryText, [limit]);
+        return rows;
     }
 };
 
