@@ -88,7 +88,7 @@ const AdminModel = {
 
         const baseQuery = `
             SELECT 
-                u.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.city, u.created_at, u.is_active,
+                u.user_id, u.role, u.first_name, u.last_name, u.email, u.phone_number, u.city, u.created_at, u.is_active,
                 COALESCE(vsc.total_hours_logged, 0) AS total_hours_served,
                 COUNT(*) OVER()::integer AS full_count
             FROM users u
@@ -117,7 +117,7 @@ const AdminModel = {
         const [profileResult, historyResult] = await Promise.all([
             db.query(`
                 SELECT 
-                    u.user_id, u.first_name, u.last_name, u.email, u.phone_number, 
+                    u.user_id, u.role, u.first_name, u.last_name, u.email, u.phone_number, 
                     u.date_of_birth, u.gender, u.blood_group, u.residential_address, u.city, u.state, u.pincode,
                     u.emergency_contact_name, u.emergency_contact_relation, u.emergency_contact_number,
                     u.medical_conditions, u.education_level, u.college_name, u.profession,
