@@ -11,6 +11,7 @@ const AdminEventController = {
         try {
             const {
                 title,
+                category,
                 event_date,
                 start_time,
                 end_time,
@@ -24,19 +25,18 @@ const AdminEventController = {
 
             const adminId = req.user.userId;
 
-            if (
-                !title ||
-                !event_date ||
-                !start_time ||
-                !end_time ||
-                !location_name ||
-                !location_address ||
-                !volunteers_needed
-            ) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Required fields are missing."
-                });
+            if (!title || !event_date || !start_time || !end_time || !location_name || !location_address || !volunteers_needed) {
+                return res.status(400).json({ success: false, message: "Required fields are missing." });
+            }
+
+            // NEW: Validate Category against the DB ENUM
+            const validCategories = ['Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other'];
+            let finalCategory = 'Other'; // Default
+            if (category) {
+                if (!validCategories.includes(category)) {
+                    return res.status(400).json({ success: false, message: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
+                }
+                finalCategory = category;
             }
 
             const eventDate = new Date(event_date);
@@ -44,27 +44,18 @@ const AdminEventController = {
             today.setHours(0,0,0,0);
 
             if (eventDate < today) {
-                return res.status(400).json({
-                    success:false,
-                    message:"Event date cannot be in the past."
-                });
+                return res.status(400).json({ success: false, message: "Event date cannot be in the past." });
             }
 
             if (start_time >= end_time) {
-                return res.status(400).json({
-                    success:false,
-                    message:"End time must be after start time."
-                });
+                return res.status(400).json({ success: false, message: "End time must be after start time." });
             }
 
             if (registration_deadline) {
                 const eventStart = new Date(`${event_date}T${start_time}`);
                 const deadline = new Date(registration_deadline);
                 if (deadline >= eventStart) {
-                    return res.status(400).json({
-                        success:false,
-                        message:"Registration deadline must be before event start time."
-                    });
+                    return res.status(400).json({ success: false, message: "Registration deadline must be before event start time." });
                 }
             }
 
@@ -72,40 +63,22 @@ const AdminEventController = {
             const needed = Number(volunteers_needed);
             const max = Number(max_volunteers || volunteers_needed);
             
-            if (
-                min <= 0 ||
-                needed <= 0 ||
-                max <= 0
-            ) {
-                return res.status(400).json({
-                    success:false,
-                    message:"Volunteer counts must be greater than zero."
-                });
+            if (min <= 0 || needed <= 0 || max <= 0) {
+                return res.status(400).json({ success: false, message: "Volunteer counts must be greater than zero." });
             }
-
             if (min > max) {
-                return res.status(400).json({
-                    success:false,
-                    message:"Minimum volunteers cannot exceed maximum volunteers."
-                });
+                return res.status(400).json({ success: false, message: "Minimum volunteers cannot exceed maximum volunteers." });
             }
-
             if (needed > max) {
-                return res.status(400).json({
-                    success:false,
-                    message:"Volunteers needed cannot exceed maximum volunteers."
-                });
+                return res.status(400).json({ success: false, message: "Volunteers needed cannot exceed maximum volunteers." });
             }
-
             if (min > needed) {
-                return res.status(400).json({
-                    success:false,
-                    message:"Minimum volunteers cannot exceed volunteers needed."
-                });
+                return res.status(400).json({ success: false, message: "Minimum volunteers cannot exceed volunteers needed." });
             }
 
             const payload = {
                 ...req.body,
+                category: finalCategory, // Pass validated category
                 volunteers_needed: needed,
                 min_volunteers: min,
                 max_volunteers: max
@@ -164,13 +137,20 @@ const AdminEventController = {
             const { id } = req.params;
             const adminId = req.user.userId;
             
-            // Strict allowlist of fields that can be updated to prevent SQL injection or state hacking
             const allowedFields = [
                 'title', 'description', 'category', 'event_date', 
                 'start_time', 'end_time', 'location_name', 'location_address', 
                 'google_maps_link', 'contact_person_name', 'contact_person_phone', 
                 'volunteers_needed', 'min_volunteers', 'max_volunteers', 'registration_deadline'
             ];
+
+            // NEW: Validate Category if provided in update
+            if (req.body.category) {
+                const validCategories = ['Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other'];
+                if (!validCategories.includes(req.body.category)) {
+                    return res.status(400).json({ success: false, message: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
+                }
+            }
 
             const updateData = {};
             Object.keys(req.body).forEach(key => {
@@ -185,11 +165,7 @@ const AdminEventController = {
 
             const updatedEvent = await AdminEventModel.updateEvent(id, updateData, adminId);
             
-            return res.status(200).json({
-                success: true,
-                message: 'Event updated successfully.',
-                data: updatedEvent
-            });
+            return res.status(200).json({ success: true, message: 'Event updated successfully.', data: updatedEvent });
         } catch (error) {
             if (error.message === "EVENT_NOT_FOUND") return res.status(404).json({ success: false, message: "Event not found." });
             if (error.message === "INVALID_EVENT_STATUS") return res.status(400).json({ success: false, message: "Cannot edit completed, cancelled, or archived events." });

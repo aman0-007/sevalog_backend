@@ -20,11 +20,9 @@ const publicController = {
             let regStatus = "Closed";
             
             if (event.registration_open) {
-                // 1. Check Capacity
                 if (event.max_volunteers && event.current_registered >= event.max_volunteers) {
                     regStatus = "Full";
                 } 
-                // 2. Check Deadline
                 else if (event.registration_deadline) {
                     const now = new Date();
                     const deadline = new Date(event.registration_deadline);
@@ -47,27 +45,18 @@ const publicController = {
                         }
                     }
                 } 
-                // 3. Open with no deadline specified
                 else {
                     regStatus = "Open";
                 }
             }
 
-            // Attach the computed display properties to the response payload
             event.registration_status_message = regStatus;
             event.is_full = regStatus === "Full";
 
-            return res.status(200).json({ 
-                success: true,
-                data: event 
-            });
-
+            return res.status(200).json({ success: true, data: event });
         } catch (error) {
             console.error('[Public Event Retrieval Error]:', error);
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Failed to retrieve the latest event.' 
-            });
+            return res.status(500).json({ success: false, message: 'Failed to retrieve the latest event.' });
         }
     },
 
@@ -81,17 +70,14 @@ const publicController = {
 
             const { data, totalCount } = await PublicModel.getAllUpcomingEvents(limit, offset);
 
-            // --- Registration Status Engine ---
             const now = new Date();
-
             const formattedEvents = data.map(event => {
                 let regStatus = "Closed";
                 
                 if (event.registration_open) {
                     if (event.max_volunteers && event.current_registered >= event.max_volunteers) {
                         regStatus = "Full";
-                    } 
-                    else if (event.registration_deadline) {
+                    } else if (event.registration_deadline) {
                         const deadline = new Date(event.registration_deadline);
                         
                         if (now > deadline) {
@@ -111,8 +97,7 @@ const publicController = {
                                 regStatus = "Closes soon";
                             }
                         }
-                    } 
-                    else {
+                    } else {
                         regStatus = "Open";
                     }
                 }
@@ -134,13 +119,9 @@ const publicController = {
                 },
                 data: formattedEvents 
             });
-
         } catch (error) {
             console.error('[Public Events List Error]:', error);
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Failed to retrieve public events list.' 
-            });
+            return res.status(500).json({ success: false, message: 'Failed to retrieve public events list.' });
         }
     },
 
@@ -155,7 +136,6 @@ const publicController = {
                 return res.status(404).json({ success: false, message: 'Event not found or unavailable.' });
             }
 
-            // --- Registration Status Engine ---
             let regStatus = "Closed";
             if (event.registration_open) {
                 if (event.max_volunteers && event.current_registered >= event.max_volunteers) {
@@ -163,7 +143,7 @@ const publicController = {
                 } else if (event.registration_deadline) {
                     const now = new Date();
                     const deadline = new Date(event.registration_deadline);
-                    regStatus = now > deadline ? "Closed" : "Open"; // Simplified logic for detail view, or reuse the detailed string logic
+                    regStatus = now > deadline ? "Closed" : "Open";
                 } else {
                     regStatus = "Open";
                 }
@@ -178,6 +158,42 @@ const publicController = {
                 return res.status(400).json({ success: false, message: 'Invalid event ID.' });
             }
             return res.status(500).json({ success: false, message: 'Server error retrieving event details.' });
+        }
+    },
+
+    /**
+     * NEW: Publicly verify a certificate UUID
+     */
+    verifyCertificate: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const cert = await PublicModel.verifyCertificate(id);
+            
+            if (!cert) {
+                return res.status(404).json({ 
+                    success: false, 
+                    status: "Invalid", 
+                    message: "This certificate ID does not exist in our system." 
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                status: "Valid",
+                data: {
+                    volunteer_name: `${cert.first_name} ${cert.last_name}`,
+                    event: cert.event_title || "Overall Master Certificate",
+                    hours: cert.hours_credited,
+                    issued_at: cert.issued_at
+                }
+            });
+
+        } catch (error) {
+            if (error.code === '22P02') {
+                return res.status(400).json({ success: false, status: "Invalid", message: "Invalid certificate format." });
+            }
+            console.error('[Public Verification Error]:', error);
+            return res.status(500).json({ success: false, message: 'Server error during verification.' });
         }
     }
 };

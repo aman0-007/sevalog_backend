@@ -92,9 +92,16 @@ const VolunteerModel = {
      */
     getDashboardData: async (userId) => {
         const [statsRes, upcomingRes, historyRes] = await Promise.all([
-            // 1. Overall Impact Stats (from your View)
+            // 1. UPDATED: Overall Impact Stats (Now pulls Ranks and Badges too!)
             db.query(`
-                SELECT total_activities_attended, total_hours_logged 
+                SELECT 
+                    total_activities_attended, 
+                    total_hours_logged,
+                    current_rank,
+                    current_rank_icon,
+                    current_rank_color,
+                    next_rank_hours,
+                    earned_badges
                 FROM volunteer_dashboard_stats 
                 WHERE user_id = $1;
             `, [userId]),
@@ -128,10 +135,72 @@ const VolunteerModel = {
         ]);
 
         return {
-            impact: statsRes.rows[0] || { total_activities_attended: 0, total_hours_logged: "0.00" },
+            impact: statsRes.rows[0] || { 
+                total_activities_attended: 0, 
+                total_hours_logged: "0.00",
+                current_rank: "Rookie",
+                earned_badges: []
+            },
             upcomingEvents: upcomingRes.rows,
             recentHistory: historyRes.rows
         };
+    },
+
+    /**
+     * NEW: Fetch all certificates for the logged-in user
+     */
+    getMyCertificates: async (userId) => {
+        const query = `
+            SELECT 
+                c.certificate_id, c.type, c.hours_credited, c.issued_at,
+                e.title AS event_title, e.event_date
+            FROM certificates c
+            LEFT JOIN events e ON c.event_id = e.event_id
+            WHERE c.user_id = $1
+            ORDER BY c.issued_at DESC;
+        `;
+        const { rows } = await db.query(query, [userId]);
+        return rows;
+    },
+
+    /**
+     * NEW: Fetch specific certificate data for PDF generation
+     */
+    getCertificateData: async (certificateId, userId) => {
+        const query = `
+            SELECT 
+                c.certificate_id, c.type, c.hours_credited, c.issued_at,
+                e.title AS event_title, e.event_date,
+                u.first_name, u.last_name
+            FROM certificates c
+            JOIN users u ON c.user_id = u.user_id
+            LEFT JOIN events e ON c.event_id = e.event_id
+            WHERE c.certificate_id = $1 AND c.user_id = $2;
+        `;
+        const { rows } = await db.query(query, [certificateId, userId]);
+        return rows[0];
+    },
+
+    /**
+     * NEW: Fetch the global community feed
+     */
+    getCommunityFeed: async (limit = 15) => {
+        const query = `
+            SELECT 
+                t.log_id, 
+                t.action, 
+                t.timestamp,
+                u.first_name, 
+                LEFT(u.last_name, 1) AS last_name_initial,
+                e.title AS event_title
+            FROM event_timeline t
+            JOIN users u ON t.user_id = u.user_id
+            LEFT JOIN events e ON t.event_id = e.event_id
+            ORDER BY t.timestamp DESC
+            LIMIT $1;
+        `;
+        const { rows } = await db.query(query, [limit]);
+        return rows;
     }
 };
 

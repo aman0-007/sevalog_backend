@@ -51,6 +51,8 @@ router.use(isAdmin);
  *                 type: string
  *               category:
  *                 type: string
+ *                 enum: [Cleanliness, Food Drive, Teaching, Medical Camp, Animal Welfare, Other]
+ *                 default: Other
  *               event_date:
  *                 type: string
  *                 format: date
@@ -263,6 +265,11 @@ router.delete('/events/:id', AdminEventController.deleteSystemEvent);
  *           type: string
  *           enum: [checkin, checkout]
  *           default: checkin
+ *      - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [Cleanliness, Food Drive, Teaching, Medical Camp, Animal Welfare, Other]
  *     responses:
  *       200:
  *         description: QR token generated successfully
@@ -532,6 +539,22 @@ router.put('/tasks/:id', AdminTaskController.updateTaskDetails);
 /**
  * @route   PATCH /api/admin/tasks/:id/status
  * @desc    Verify or change status (Complete, Cancel, etc.)
+ * @swagger
+ * /api/admin/tasks/{id}/status:
+ *   patch:
+ *     summary: Update task status and award hours
+ *     tags: [Admin Tasks]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status: { type: string, enum: [assigned, in_progress, pending_verification, completed, cancelled] }
+ *               admin_remarks: { type: string }
+ *               hours_awarded: { type: number, description: "Required if status is completed" }
  */
 router.patch('/tasks/:id/status', AdminTaskController.changeTaskStatus);
 

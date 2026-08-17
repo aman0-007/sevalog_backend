@@ -86,7 +86,7 @@ const AdminTaskModel = {
     /**
      * Update Task Status & Remarks (Verify / Cancel) - Only CREATOR can do this
      */
-    updateTaskStatus: async (taskId, status, admin_remarks, adminId) => {
+    updateTaskStatus: async (taskId, status, admin_remarks, hours_awarded, adminId) => {
         const client = await db.connect();
         try {
             await client.query("BEGIN");
@@ -94,16 +94,26 @@ const AdminTaskModel = {
             const taskCheck = await client.query(`SELECT created_by FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
             
             if (taskCheck.rows.length === 0) throw new Error("TASK_NOT_FOUND");
-            // NEW: Strict Read-Only check for other admins
             if (taskCheck.rows[0].created_by !== adminId) throw new Error("UNAUTHORIZED_ADMIN");
 
+            // Only award hours if the status is actually completed
+            const hours = (status === 'completed') ? (parseFloat(hours_awarded) || 0.00) : 0.00;
+
             const { rows } = await client.query(
-                `UPDATE tasks SET status = $1, admin_remarks = COALESCE($2, admin_remarks), updated_at = NOW()
-                 WHERE task_id = $3 RETURNING *`,
-                [status, admin_remarks || null, taskId]
+                `UPDATE tasks 
+                 SET status = $1, 
+                     admin_remarks = COALESCE($2, admin_remarks), 
+                     hours_awarded = $3,
+                     updated_at = NOW()
+                 WHERE task_id = $4 RETURNING *`,
+                [status, admin_remarks || null, hours, taskId]
             );
 
-            await client.query(`INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`, [taskId, adminId, `Task status verified/changed to ${status}`]);
+            const timelineAction = status === 'completed' 
+                ? `Task verified and completed. Awarded ${hours} hours.` 
+                : `Task status verified/changed to ${status}`;
+
+            await client.query(`INSERT INTO task_timeline (task_id, user_id, action) VALUES ($1, $2, $3)`, [taskId, adminId, timelineAction]);
 
             await client.query("COMMIT");
             return rows[0];

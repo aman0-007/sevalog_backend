@@ -110,6 +110,24 @@ const PublicModel = {
         
         const { rows } = await db.query(queryText, [eventId]);
         return rows[0] || null;
+    },
+
+    /**
+     * NEW: Fetch certificate details for public verification
+     */
+    verifyCertificate: async (certificateId) => {
+        const queryText = `
+            SELECT 
+                c.certificate_id, c.type, c.hours_credited, c.issued_at,
+                e.title AS event_title,
+                u.first_name, u.last_name
+            FROM certificates c
+            JOIN users u ON c.user_id = u.user_id
+            LEFT JOIN events e ON c.event_id = e.event_id
+            WHERE c.certificate_id = $1;
+        `;
+        const { rows } = await db.query(queryText, [certificateId]);
+        return rows[0] || null;
     }
 };
 

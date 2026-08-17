@@ -53,14 +53,26 @@ const AdminTaskController = {
         try {
             const { id } = req.params;
             const adminId = req.user.userId;
-            const { status, admin_remarks } = req.body;
+            
+            // Extract hours_awarded from the body
+            const { status, admin_remarks, hours_awarded } = req.body;
 
             const validStatuses = ['assigned', 'in_progress', 'pending_verification', 'completed', 'cancelled'];
             if (!validStatuses.includes(status)) {
                 return res.status(400).json({ success: false, message: "Invalid status." });
             }
 
-            const updatedTask = await AdminTaskModel.updateTaskStatus(id, status, admin_remarks, adminId);
+            // Validate hours if completing
+            let finalHours = 0;
+            if (status === 'completed' && hours_awarded) {
+                finalHours = parseFloat(hours_awarded);
+                if (isNaN(finalHours) || finalHours < 0) {
+                    return res.status(400).json({ success: false, message: "Hours awarded must be a valid positive number." });
+                }
+            }
+
+            // Pass finalHours to the model
+            const updatedTask = await AdminTaskModel.updateTaskStatus(id, status, admin_remarks, finalHours, adminId);
             return res.status(200).json({ success: true, message: `Task marked as ${status}.`, data: updatedTask });
         } catch (error) {
             if (error.message === "TASK_NOT_FOUND") return res.status(404).json({ success: false, message: "Task not found." });

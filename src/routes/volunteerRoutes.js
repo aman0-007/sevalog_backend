@@ -97,6 +97,70 @@ router.put('/profile', volunteerController.updateMyProfile);
 router.get('/dashboard', volunteerController.getMyDashboard);
 
 /**
+ * @route   GET /api/volunteer/feed
+ * @desc    Get the latest community activity timeline
+ * @swagger
+ * /api/volunteer/feed:
+ *   get:
+ *     summary: Get community feed
+ *     description: Retrieves the latest activities across the NGO (event completions, badge earnings).
+ *     tags: [Volunteer Dashboard]
+ *     responses:
+ *       200:
+ *         description: Feed retrieved successfully
+ */
+router.get('/feed', volunteerController.getCommunityFeed);
+
+// ==========================================
+// VOLUNTEER CERTIFICATE ROUTES
+// ==========================================
+
+/**
+ * @route   GET /api/volunteer/certificates
+ * @desc    Get a list of all verifiable certificates earned by the volunteer
+ * @swagger
+ * /api/volunteer/certificates:
+ *   get:
+ *     summary: List earned certificates
+ *     description: Retrieves all verifiable certificates automatically generated for this volunteer upon event completion.
+ *     tags: [Volunteer Certificates]
+ *     responses:
+ *       200:
+ *         description: Certificates retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/certificates', volunteerController.listMyCertificates);
+
+/**
+ * @route   GET /api/volunteer/certificates/:id/download
+ * @desc    Get the exact JSON data needed to draw the certificate on the frontend
+ * @swagger
+ * /api/volunteer/certificates/{id}/download:
+ *   get:
+ *     summary: Download certificate data
+ *     description: Fetches the exact JSON properties (name, event, hours, date) needed to render the certificate on the frontend HTML5 canvas.
+ *     tags: [Volunteer Certificates]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Certificate UUID
+ *     responses:
+ *       200:
+ *         description: Certificate data retrieved successfully
+ *       404:
+ *         description: Certificate not found or access denied
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/certificates/:id/download', volunteerController.downloadCertificateData);
+
+
+/**
  * @route   GET /api/volunteer/events
  * @desc    Get all public, upcoming/ongoing events along with user's specific registration status
  * @swagger

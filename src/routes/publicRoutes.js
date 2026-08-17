@@ -68,7 +68,8 @@ router.get('/events', publicController.getAllPublicEvents);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *         description: The unique identifier of the event
  *     responses:
  *       200:
@@ -79,5 +80,34 @@ router.get('/events', publicController.getAllPublicEvents);
  *         description: Server error
  */
 router.get('/events/:id', publicController.getPublicEventById);
+
+/**
+ * @route   GET /api/public/verify-certificate/:id
+ * @desc    Publicly verify the authenticity of a volunteer certificate
+ * @swagger
+ * /api/public/verify-certificate/{id}:
+ *   get:
+ *     summary: Verify a certificate
+ *     description: Open endpoint for third parties (schools, employers, recruiters) to verify a certificate UUID.
+ *     tags: [Public]
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Certificate is valid
+ *       400:
+ *         description: Invalid UUID format
+ *       404:
+ *         description: Certificate is invalid or not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/verify-certificate/:id', publicController.verifyCertificate);
 
 module.exports = router;

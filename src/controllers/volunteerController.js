@@ -78,6 +78,66 @@ const volunteerController = {
             console.error('[Volunteer Dashboard Fetch Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to retrieve dashboard data.' });
         }
+    },
+
+    /**
+     * NEW: Handler to list all certificates owned by the volunteer
+     */
+    listMyCertificates: async (req, res) => {
+        try {
+            const userId = req.user.userId;
+            const certs = await VolunteerModel.getMyCertificates(userId);
+            
+            return res.status(200).json({ 
+                success: true, 
+                data: certs 
+            });
+        } catch (error) {
+            console.error('[Certificate List Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to retrieve certificates.' });
+        }
+    },
+
+    /**
+     * NEW: Handler to get specific certificate data for frontend canvas rendering
+     */
+    downloadCertificateData: async (req, res) => {
+        try {
+            const userId = req.user.userId;
+            const { id } = req.params;
+            
+            const certData = await VolunteerModel.getCertificateData(id, userId);
+            
+            if (!certData) {
+                return res.status(404).json({ success: false, message: 'Certificate not found or access denied.' });
+            }
+            
+            return res.status(200).json({ 
+                success: true, 
+                data: certData 
+            });
+        } catch (error) {
+            console.error('[Certificate Data Fetch Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to retrieve certificate data.' });
+        }
+    },
+
+    /**
+     * NEW: Handler to get the community activity feed
+     */
+    getCommunityFeed: async (req, res) => {
+        try {
+            const limit = parseInt(req.query.limit, 10) || 15;
+            const feed = await VolunteerModel.getCommunityFeed(limit);
+            
+            return res.status(200).json({ 
+                success: true, 
+                data: feed 
+            });
+        } catch (error) {
+            console.error('[Community Feed Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to fetch community feed.' });
+        }
     }
 };
 
