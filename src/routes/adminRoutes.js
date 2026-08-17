@@ -125,12 +125,15 @@ router.post('/events/:id/publish', AdminEventController.publishSystemEvent);
  *       content:
  *         application/json:
  *           schema:
- *           type: object
- *           properties:
- *             title:
- *               type: string
- *             description:
- *               type: string
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *                 enum: [Cleanliness, Food Drive, Teaching, Medical Camp, Animal Welfare, Other]
  *     responses:
  *       200:
  *         description: Event updated successfully
@@ -265,11 +268,6 @@ router.delete('/events/:id', AdminEventController.deleteSystemEvent);
  *           type: string
  *           enum: [checkin, checkout]
  *           default: checkin
- *      - in: query
- *         name: category
- *         schema:
- *           type: string
- *           enum: [Cleanliness, Food Drive, Teaching, Medical Camp, Animal Welfare, Other]
  *     responses:
  *       200:
  *         description: QR token generated successfully
