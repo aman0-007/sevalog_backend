@@ -5,7 +5,7 @@ const AdminTaskModel = {
      * Create a new task and log it in the timeline
      */
     createTask: async (taskData, adminId) => {
-        const { event_id, assigned_to, title, description, deadline, is_public } = taskData;
+        const { event_id, assigned_to, title, description, deadline, is_public, hours_awarded } = taskData;
         const client = await db.connect();
         
         try {
@@ -14,12 +14,12 @@ const AdminTaskModel = {
             const insertQuery = `
                 INSERT INTO tasks (
                     event_id, created_by, assigned_to, title, description, deadline, is_public
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING *;
             `;
             const values = [
                 event_id || null, adminId, assigned_to, title.trim(), 
-                description?.trim() || null, deadline || null, is_public !== false
+                description?.trim() || null, deadline || null, is_public !== false, hours_awarded || 0.00
             ];
 
             const { rows } = await client.query(insertQuery, values);

@@ -4,7 +4,7 @@ const AdminTaskController = {
 
     createNewTask: async (req, res) => {
         try {
-            const { title, assigned_to, deadline } = req.body;
+            const { title, assigned_to, deadline, hours_awarded } = req.body;
             const adminId = req.user.userId;
 
             if (!title || !assigned_to) {
@@ -15,7 +15,14 @@ const AdminTaskController = {
                 return res.status(400).json({ success: false, message: "Deadline cannot be in the past." });
             }
 
-            const newTask = await AdminTaskModel.createTask(req.body, adminId);
+            const safeHours = hours_awarded ? parseFloat(hours_awarded) : 0;
+            if (safeHours < 0) {
+                return res.status(400).json({ success: false, message: "Hours cannot be negative." });
+            }
+
+            const payload = { ...req.body, hours_awarded: safeHours };
+
+            const newTask = await AdminTaskModel.createTask(payload, adminId);
             return res.status(201).json({ success: true, message: 'Task created successfully.', data: newTask });
         } catch (error) {
             console.error('[Create Task Error]:', error);
