@@ -61,15 +61,15 @@ const AdminEventController = {
 
             const min = Number(min_volunteers || 1);
             const needed = Number(volunteers_needed);
-            const max = Number(max_volunteers || volunteers_needed);
+            const max = max_volunteers ? Number(max_volunteers) : null;
             
-            if (min <= 0 || needed <= 0 || max <= 0) {
+            if (min <= 0 || needed <= 0 || (max !== null && max <= 0)) {
                 return res.status(400).json({ success: false, message: "Volunteer counts must be greater than zero." });
             }
-            if (min > max) {
+            if (max !== null && min > max) {
                 return res.status(400).json({ success: false, message: "Minimum volunteers cannot exceed maximum volunteers." });
             }
-            if (needed > max) {
+            if (max !== null && needed > max) {
                 return res.status(400).json({ success: false, message: "Volunteers needed cannot exceed maximum volunteers." });
             }
             if (min > needed) {
@@ -144,12 +144,15 @@ const AdminEventController = {
                 'volunteers_needed', 'min_volunteers', 'max_volunteers', 'registration_deadline'
             ];
 
-            // NEW: Validate Category if provided in update
             if (req.body.category) {
                 const validCategories = ['Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other'];
                 if (!validCategories.includes(req.body.category)) {
                     return res.status(400).json({ success: false, message: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
                 }
+            }
+
+            if ('max_volunteers' in req.body) {
+                req.body.max_volunteers = req.body.max_volunteers ? Number(req.body.max_volunteers) : null;
             }
 
             const updateData = {};
@@ -163,10 +166,23 @@ const AdminEventController = {
                 return res.status(400).json({ success: false, message: 'No valid fields provided for update.' });
             }
 
+            if (updateData.start_time && updateData.end_time) {
+                if (updateData.start_time >= updateData.end_time) {
+                    return res.status(400).json({ success: false, message: "End time must be after start time." });
+                }
+            }
+
             const updatedEvent = await AdminEventModel.updateEvent(id, updateData, adminId);
             
             return res.status(200).json({ success: true, message: 'Event updated successfully.', data: updatedEvent });
         } catch (error) {
+            // FIX BUG 4 (Advanced): Catch DB Constraints and return clean 400 errors instead of 500 crash
+            if (error.code === '23514') { // 23514 is PostgreSQL's check_violation code
+                if (error.constraint === 'chk_time_order') return res.status(400).json({ success: false, message: "End time must be after start time." });
+                if (error.constraint === 'chk_volunteer_limits') return res.status(400).json({ success: false, message: "Max volunteers must be greater than or equal to min volunteers." });
+                if (error.constraint === 'chk_registration_deadline') return res.status(400).json({ success: false, message: "Registration deadline cannot be after the event ends." });
+            }
+
             if (error.message === "EVENT_NOT_FOUND") return res.status(404).json({ success: false, message: "Event not found." });
             if (error.message === "INVALID_EVENT_STATUS") return res.status(400).json({ success: false, message: "Cannot edit completed, cancelled, or archived events." });
             

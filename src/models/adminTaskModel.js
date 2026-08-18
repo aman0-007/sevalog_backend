@@ -48,12 +48,18 @@ const AdminTaskModel = {
         try {
             await client.query("BEGIN");
 
-            const taskCheck = await client.query(`SELECT status, created_by FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
+            const taskCheck = await client.query(`SELECT status, created_by, assigned_to FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
             
             if (taskCheck.rows.length === 0) throw new Error("TASK_NOT_FOUND");
-            // NEW: Strict Read-Only check for other admins
             if (taskCheck.rows[0].created_by !== adminId) throw new Error("UNAUTHORIZED_ADMIN"); 
             if (taskCheck.rows[0].status === 'completed' || taskCheck.rows[0].status === 'cancelled') throw new Error("INVALID_TASK_STATUS");
+
+            // FIX: Prevent swapping the assignee if the volunteer has already started working on it!
+            if (updateData.assigned_to && updateData.assigned_to !== taskCheck.rows[0].assigned_to) {
+                if (taskCheck.rows[0].status !== 'assigned') {
+                    throw new Error("CANNOT_REASSIGN_ACTIVE_TASK");
+                }
+            }
 
             const setClauses = [];
             const values = [];
@@ -91,10 +97,11 @@ const AdminTaskModel = {
         try {
             await client.query("BEGIN");
 
-            const taskCheck = await client.query(`SELECT created_by FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
-            
+            const taskCheck = await client.query(`SELECT created_by, status FROM tasks WHERE task_id = $1 AND is_deleted = FALSE FOR UPDATE`, [taskId]);
+
             if (taskCheck.rows.length === 0) throw new Error("TASK_NOT_FOUND");
             if (taskCheck.rows[0].created_by !== adminId) throw new Error("UNAUTHORIZED_ADMIN");
+            if (['completed', 'cancelled'].includes(taskCheck.rows[0].status)) throw new Error("INVALID_TASK_STATUS"); // FIX: Prevent modifying a closed task
 
             // Only award hours if the status is actually completed
             const hours = (status === 'completed') ? (parseFloat(hours_awarded) || 0.00) : 0.00;
@@ -102,7 +109,7 @@ const AdminTaskModel = {
             const { rows } = await client.query(
                 `UPDATE tasks 
                  SET status = $1, 
-                     admin_remarks = COALESCE($2, admin_remarks), 
+                     admin_remarks = $2, 
                      hours_awarded = $3,
                      updated_at = NOW()
                  WHERE task_id = $4 RETURNING *`,
@@ -171,7 +178,7 @@ const AdminTaskModel = {
             if (['completed', 'cancelled'].includes(checkTask.rows[0].status)) throw new Error("TASK_FROZEN");
 
             const { rows } = await client.query(
-                `UPDATE tasks SET status = $1, volunteer_remarks = COALESCE($2, volunteer_remarks), updated_at = NOW() 
+                `UPDATE tasks SET status = $1, volunteer_remarks = $2, updated_at = NOW() 
                  WHERE task_id = $3 RETURNING *`,
                 [status, volunteer_remarks || null, taskId]
             );

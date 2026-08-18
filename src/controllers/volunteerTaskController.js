@@ -33,6 +33,24 @@ const VolunteerTaskController = {
             console.error('[Volunteer Task Update Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to update task progress.' });
         }
+    },
+
+    getTaskDetails: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const userId = req.user.userId;
+            
+            const task = await VolunteerTaskModel.getTaskDetails(id, userId);
+            
+            if (!task) {
+                return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
+            }
+            
+            return res.status(200).json({ success: true, data: task });
+        } catch (error) {
+            console.error('[Volunteer Task Details Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to retrieve task details.' });
+        }
     }
 };
 

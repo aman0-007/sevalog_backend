@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- 1. ENUM TYPES
 -- =====================================================
 CREATE TYPE user_role AS ENUM ('admin', 'volunteer');
-CREATE TYPE attendance_status AS ENUM ('registered', 'withdrawn', 'present', 'absent');
+CREATE TYPE attendance_status AS ENUM ('registered', 'withdrawn', 'present', 'absent', 'waitlisted');
 CREATE TYPE blood_group_type AS ENUM ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-');
 CREATE TYPE event_lifecycle_status AS ENUM ('draft', 'published', 'completed', 'cancelled', 'archived');
 CREATE TYPE task_status AS ENUM ('assigned', 'in_progress', 'pending_verification', 'completed', 'cancelled');
@@ -286,7 +286,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_evaluate_badges AFTER INSERT OR UPDATE OF status, hours_logged ON attendance FOR EACH ROW EXECUTE FUNCTION trigger_evaluate_badges_func();
+CREATE TRIGGER trigger_evaluate_badges AFTER INSERT OR UPDATE OF status, check_out_time ON attendance FOR EACH ROW EXECUTE FUNCTION trigger_evaluate_badges_func();
 CREATE TRIGGER trigger_evaluate_task_badges AFTER INSERT OR UPDATE OF status, hours_awarded ON tasks FOR EACH ROW EXECUTE FUNCTION trigger_evaluate_badges_func();
 
 -- =====================================================

@@ -31,52 +31,23 @@ const VolunteerEventModel = {
 
                 e.status,
 
-                CASE
-                    WHEN e.status = 'cancelled'
-                        THEN 'cancelled'
-
-                    WHEN e.status = 'completed'
-                        THEN 'completed'
-
-                    WHEN CURRENT_DATE < e.event_date
-                        THEN 'upcoming'
-
-                    WHEN CURRENT_DATE = e.event_date
-                        AND CURRENT_TIME < e.start_time
-                        THEN 'upcoming'
-
-                    WHEN CURRENT_DATE = e.event_date
-                        AND CURRENT_TIME BETWEEN e.start_time AND e.end_time
-                        THEN 'ongoing'
-
-                    WHEN CURRENT_DATE > e.event_date
-                        THEN 'completed'
-
-                    WHEN CURRENT_DATE = e.event_date
-                        AND CURRENT_TIME > e.end_time
-                        THEN 'completed'
+                CASE 
+                    WHEN e.status IN ('cancelled', 'archived', 'draft', 'completed') THEN e.status::text
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date < e.event_date THEN 'upcoming'
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date = e.event_date AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time < e.start_time THEN 'upcoming'                    
+                    WHEN e.status = 'published' THEN 'ongoing'
+                    ELSE e.status::text
                 END AS dynamic_status,
                 
                 CASE
-                    WHEN e.status <> 'published'
-                        THEN FALSE
-
-                    WHEN e.registration_deadline IS NOT NULL
-                        AND CURRENT_TIMESTAMP > e.registration_deadline
-                        THEN FALSE
-
-                    WHEN e.max_volunteers IS NOT NULL
-                        AND COALESCE(att.reg_count,0) >= e.max_volunteers
-                        THEN FALSE
-
+                    WHEN e.status <> 'published' THEN FALSE
+                    WHEN e.registration_deadline IS NOT NULL AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') > (e.registration_deadline AT TIME ZONE 'Asia/Kolkata') THEN FALSE
+                    WHEN e.max_volunteers IS NOT NULL AND COALESCE(att.reg_count,0) >= e.max_volunteers THEN FALSE
                     ELSE TRUE
                 END AS registration_open,
 
                 CASE
-                    WHEN user_att.status='registered'
-                        AND CURRENT_TIMESTAMP <
-                            (e.event_date + e.start_time)
-                    THEN TRUE
+                    WHEN user_att.status='registered' AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') < (e.event_date + e.start_time) THEN TRUE
                     ELSE FALSE
                 END AS can_withdraw,
 
@@ -147,7 +118,7 @@ const VolunteerEventModel = {
             const yyyy = event.event_date.getFullYear();
             const mm = String(event.event_date.getMonth() + 1).padStart(2, '0');
             const dd = String(event.event_date.getDate()).padStart(2, '0');
-            const eventStart = new Date(`${yyyy}-${mm}-${dd}T${event.start_time}`);
+            const eventStart = new Date(`${yyyy}-${mm}-${dd}T${event.start_time}+05:30`);
 
             if (new Date() >= eventStart) {
                 throw new Error("Registration has closed. The event has already started.");
@@ -179,17 +150,18 @@ const VolunteerEventModel = {
             const currentCount = countRows[0].total;
 
             // 3. Capacity & Waitlist Routing
+            let assignedStatus = 'registered';
             if (event.max_volunteers && currentCount >= event.max_volunteers) {
-                throw new Error('Event is at maximum capacity.');
+                assignedStatus = 'waitlisted';
             }
 
-            // 4. Insert or Update (Upsert to handle previous withdrawals)
+            // 4. Insert Attendance Record
             const upsertQuery = `
                 INSERT INTO attendance (event_id, volunteer_id, status)
-                VALUES ($1, $2, 'registered')
+                VALUES ($1, $2, $3)
                 RETURNING *;
             `;
-            const { rows: attRows } = await client.query(upsertQuery, [eventId, userId]);
+            const { rows: attRows } = await client.query(upsertQuery, [eventId, userId, assignedStatus]);
 
             await client.query(
                 `
@@ -251,9 +223,10 @@ const VolunteerEventModel = {
                 throw new Error("Withdrawal is not allowed for this event.");
             }
 
-            const eventStart = new Date(
-                `${event.event_date.toISOString().split("T")[0]}T${event.start_time}`
-            );
+            const yyyy = event.event_date.getFullYear();
+            const mm = String(event.event_date.getMonth() + 1).padStart(2, '0');
+            const dd = String(event.event_date.getDate()).padStart(2, '0');
+            const eventStart = new Date(`${yyyy}-${mm}-${dd}T${event.start_time}+05:30`);
 
             const cutoffTime = new Date(eventStart.getTime() - (30 * 60000));
             if (new Date() >= cutoffTime) {
@@ -356,7 +329,7 @@ const VolunteerEventModel = {
             const localDateStr = `${yyyy}-${mm}-${dd}`;
 
             // Date processing boundary check
-            const eventEnd = new Date(`${localDateStr}T${event.end_time}`);
+            const eventEnd = new Date(`${localDateStr}T${event.end_time}+05:30`);
             if (new Date() > eventEnd) throw new Error("Event has already ended.");
 
             // Now lock attendance
@@ -425,9 +398,9 @@ const VolunteerEventModel = {
             const localDateStr = `${yyyy}-${mm}-${dd}`;
 
             const now = new Date();
-            const eventStart = new Date(`${localDateStr}T${event.start_time}`);
-            const eventEnd = new Date(`${localDateStr}T${event.end_time}`);
-            
+            const eventStart = new Date(`${localDateStr}T${event.start_time}+05:30`);
+            const eventEnd = new Date(`${localDateStr}T${event.end_time}+05:30`);
+
             if (now < eventStart) throw new Error("Checkout is not available before the event starts.");
             
             // Apply the same 2-hour limit from the QR Generator for absolute security

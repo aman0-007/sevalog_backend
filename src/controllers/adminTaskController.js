@@ -11,8 +11,11 @@ const AdminTaskController = {
                 return res.status(400).json({ success: false, message: "Title and Assignee are required." });
             }
 
-            if (deadline && new Date(deadline) < new Date()) {
-                return res.status(400).json({ success: false, message: "Deadline cannot be in the past." });
+            if (deadline) {
+                const deadlineIST = new Date(`${deadline}+05:30`);
+                if (deadlineIST < new Date()) {
+                    return res.status(400).json({ success: false, message: "Deadline cannot be in the past." });
+                }
             }
 
             const safeHours = hours_awarded ? parseFloat(hours_awarded) : 0;
@@ -51,6 +54,7 @@ const AdminTaskController = {
             if (error.message === "TASK_NOT_FOUND") return res.status(404).json({ success: false, message: "Task not found." });
             if (error.message === "INVALID_TASK_STATUS") return res.status(400).json({ success: false, message: "Cannot edit completed or cancelled tasks." });
             if (error.message === "UNAUTHORIZED_ADMIN") return res.status(403).json({ success: false, message: "Access Denied: Only the creator of this task can modify or verify it." });
+            if (error.message === "CANNOT_REASSIGN_ACTIVE_TASK") return res.status(400).json({ success: false, message: "Cannot reassign a task once work has started." });
             console.error('[Update Task Error]:', error);
             return res.status(500).json({ success: false, message: 'Failed to update task.' });
         }

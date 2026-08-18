@@ -37,7 +37,7 @@ const VolunteerTaskModel = {
             if (['completed', 'cancelled'].includes(checkTask.rows[0].status)) throw new Error("TASK_FROZEN");
 
             const { rows } = await client.query(
-                `UPDATE tasks SET status = $1, volunteer_remarks = COALESCE($2, volunteer_remarks), updated_at = NOW() 
+                `UPDATE tasks SET status = $1, volunteer_remarks = $2, updated_at = NOW() 
                  WHERE task_id = $3 RETURNING *`,
                 [status, volunteer_remarks || null, taskId]
             );
@@ -55,6 +55,36 @@ const VolunteerTaskModel = {
         } finally {
             client.release();
         }
+    },
+
+    getTaskDetails: async (taskId, userId) => {
+        // Fetch task details, ensuring the volunteer is either assigned to it or it's public
+        const taskQuery = `
+            SELECT t.*, 
+                   e.title AS event_title, 
+                   u.first_name AS creator_first, u.last_name AS creator_last,
+                   a.first_name AS assignee_first, a.last_name AS assignee_last
+            FROM tasks t 
+            JOIN users u ON t.created_by = u.user_id 
+            LEFT JOIN users a ON t.assigned_to = a.user_id 
+            LEFT JOIN events e ON t.event_id = e.event_id
+            WHERE t.task_id = $1 AND t.is_deleted = FALSE 
+              AND (t.assigned_to = $2 OR t.is_public = TRUE)
+        `;
+        const { rows } = await db.query(taskQuery, [taskId, userId]);
+        if (rows.length === 0) return null;
+
+        // Fetch the activity timeline so the volunteer can see the history
+        const timelineQuery = `
+            SELECT tl.action, tl.timestamp, u.first_name, u.last_name 
+            FROM task_timeline tl 
+            LEFT JOIN users u ON tl.user_id = u.user_id 
+            WHERE tl.task_id = $1 ORDER BY tl.timestamp DESC
+        `;
+        const timeline = await db.query(timelineQuery, [taskId]);
+        rows[0].timeline = timeline.rows;
+
+        return rows[0];
     }
 };
 

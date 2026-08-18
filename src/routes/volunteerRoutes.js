@@ -365,4 +365,7 @@ router.get('/tasks', volunteerTaskController.listTasks);
  */
 router.patch('/tasks/:id/progress', volunteerTaskController.updateProgress);
 
+// Add this where your other task routes are:
+router.get('/tasks/:id', volunteerTaskController.getTaskDetails);
+
 module.exports = router;

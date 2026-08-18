@@ -133,8 +133,10 @@ const AdminEventModel = {
                 UPDATE events
                 SET
                     status='published',
-                    registration_open=TRUE,
-                    updated_at=CURRENT_TIMESTAMP
+                    registration_open = CASE 
+                        WHEN registration_deadline IS NOT NULL AND CURRENT_TIMESTAMP >= registration_deadline THEN FALSE 
+                        ELSE TRUE 
+                    END
                 WHERE event_id=$1
                 RETURNING *;
                 `,
@@ -257,9 +259,13 @@ const AdminEventModel = {
                 throw new Error("INVALID_EVENT_STATUS");
             }
             const now = new Date();
-            const eventEnd = new Date(
-                `${event.event_date.toISOString().split('T')[0]}T${event.end_time}`
-            );
+            const evDate = event.event_date;
+            const yyyy = evDate.getFullYear();
+            const mm = String(evDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(evDate.getDate()).padStart(2, '0');
+            // Append +05:30 to explicitly evaluate the end time in IST
+            const eventEnd = new Date(`${yyyy}-${mm}-${dd}T${event.end_time}+05:30`);
+
             if (now < eventEnd) {
                 throw new Error("EVENT_NOT_FINISHED");
             }
@@ -273,13 +279,25 @@ const AdminEventModel = {
                 `,
                 [eventId]
             );
+
+            // 2. Volunteers who were left on the waitlist are withdrawn (no penalty)
+            // Note: Since 'waitlisted' might not exist in the DB ENUM based on your schema, 
+            // we cast it to text or handle it safely if you plan to add it later.
+            await client.query(
+                `
+                UPDATE attendance
+                SET status = 'withdrawn'
+                WHERE event_id = $1
+                AND status::text = 'waitlisted'
+                `,
+                [eventId]
+            );
             // Complete event
             const updateResult = await client.query(
                 `
                 UPDATE events
                 SET
-                    status = 'completed',
-                    updated_at = CURRENT_TIMESTAMP
+                    status = 'completed'
                 WHERE event_id = $1
                 RETURNING *;
                 `,
@@ -353,13 +371,26 @@ const AdminEventModel = {
                 `,
                 [eventId]
             );
+
+            // 2. For volunteers who are currently checked in but haven't checked out yet,
+            // automatically check them out NOW so they get partial hours for the time they were present.
+            await client.query(
+                `
+                UPDATE attendance
+                SET check_out_time = CURRENT_TIMESTAMP
+                WHERE event_id = $1
+                AND status = 'present' 
+                AND check_out_time IS NULL;
+                `,
+                [eventId]
+            );
+
             // Cancel Event
             const updateResult = await client.query(
                 `
                 UPDATE events
                 SET
-                    status = 'cancelled',
-                    updated_at = CURRENT_TIMESTAMP
+                    status = 'cancelled'
                 WHERE event_id = $1
                 RETURNING *;
                 `,
@@ -427,8 +458,7 @@ const AdminEventModel = {
                 `
                 UPDATE events
                 SET
-                    status = 'archived',
-                    updated_at = CURRENT_TIMESTAMP
+                    status = 'archived'
                 WHERE event_id = $1
                 RETURNING *;
                 `,
@@ -541,9 +571,8 @@ const AdminEventModel = {
             const dd = String(evDate.getDate()).padStart(2, '0');
             const localDateStr = `${yyyy}-${mm}-${dd}`;
 
-            const eventStart = new Date(`${localDateStr}T${event.start_time}`);
-            const eventEnd = new Date(`${localDateStr}T${event.end_time}`);
-
+            const eventStart = new Date(`${localDateStr}T${event.start_time}+05:30`);
+            const eventEnd = new Date(`${localDateStr}T${event.end_time}+05:30`);   
             if (type === "checkin") {
                 const allowedStart = new Date(eventStart.getTime() - (30 * 60 * 1000));
                 
@@ -714,11 +743,10 @@ const AdminEventModel = {
                 )::integer AS volunteers_registered,
                 COUNT(*) OVER()::integer AS full_count,
                 CASE 
-                    WHEN e.status IN ('cancelled', 'archived', 'draft') THEN e.status::text
-                    WHEN CURRENT_DATE < e.event_date THEN 'upcoming'
-                    WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME < e.start_time THEN 'upcoming'                    
-                    WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME BETWEEN e.start_time AND e.end_time THEN 'ongoing'
-                    WHEN CURRENT_DATE > e.event_date OR (CURRENT_DATE = e.event_date AND CURRENT_TIME > e.end_time) THEN 'completed'
+                    WHEN e.status IN ('cancelled', 'archived', 'draft', 'completed') THEN e.status::text
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date < e.event_date THEN 'upcoming'
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date = e.event_date AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time < e.start_time THEN 'upcoming'                    
+                    WHEN e.status = 'published' THEN 'ongoing'
                     ELSE e.status::text
                 END AS dynamic_status
             FROM events e
@@ -752,10 +780,10 @@ const AdminEventModel = {
                 u.first_name AS creator_first, 
                 u.last_name AS creator_last,
                 CASE 
-                    WHEN e.status IN ('cancelled', 'archived', 'draft') THEN e.status::text
-                    WHEN CURRENT_DATE < e.event_date THEN 'upcoming'
-                    WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME BETWEEN e.start_time AND e.end_time THEN 'ongoing'
-                    WHEN CURRENT_DATE > e.event_date OR (CURRENT_DATE = e.event_date AND CURRENT_TIME > e.end_time) THEN 'completed'
+                    WHEN e.status IN ('cancelled', 'archived', 'draft', 'completed') THEN e.status::text
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date < e.event_date THEN 'upcoming'
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date = e.event_date AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time < e.start_time THEN 'upcoming'                    
+                    WHEN e.status = 'published' THEN 'ongoing'
                     ELSE e.status::text
                 END AS dynamic_status
             FROM events e
