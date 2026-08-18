@@ -19,7 +19,15 @@ CREATE TYPE event_lifecycle_status AS ENUM ('draft', 'published', 'completed', '
 CREATE TYPE task_status AS ENUM ('assigned', 'in_progress', 'pending_verification', 'completed', 'cancelled');
 CREATE TYPE badge_metric AS ENUM ('hours', 'events_count');
 CREATE TYPE certificate_type AS ENUM ('event', 'master', 'task');
-CREATE TYPE event_category AS ENUM ('Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other');
+CREATE TYPE event_category AS ENUM (
+    'Teaching & Mentorship', 
+    'Tech & Development', 
+    'Media & Photography', 
+    'Content & Design', 
+    'Wall Painting', 
+    'Core & Planning', 
+    'Other'
+);
 
 -- =====================================================
 -- 2. CORE TABLES (Users, Events, Attendance, Timeline)
@@ -143,8 +151,18 @@ CREATE TABLE task_timeline (
 );
 
 -- =====================================================
--- 4. VERIFIABLE CERTIFICATES
+-- 4. VERIFIABLE CERTIFICATES & TEMPLATES
 -- =====================================================
+
+-- NEW: Table to store dynamic certificate wording
+CREATE TABLE certificate_templates (
+    template_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cert_type certificate_type NOT NULL,
+    event_category event_category, -- NULL if it's a task or master cert
+    template_text TEXT NOT NULL
+);
+
+-- UPDATED: Added "description" column to store the personalized text
 CREATE TABLE certificates (
     certificate_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -152,10 +170,24 @@ CREATE TABLE certificates (
     event_id UUID REFERENCES events(event_id) ON DELETE CASCADE, 
     task_id UUID REFERENCES tasks(task_id) ON DELETE CASCADE,
     hours_credited NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    description TEXT, -- Stores the generated dynamic text
     issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_event_certificate UNIQUE (user_id, event_id),
     CONSTRAINT unique_task_certificate UNIQUE (user_id, task_id)
 );
+
+-- SEED: Certificate Templates
+INSERT INTO certificate_templates (cert_type, event_category, template_text) VALUES
+('master', NULL, '<p class="cert-text">in recognition of their outstanding overall dedication, logging <strong style="color: #0F172A;">{{hours}} verified hours</strong> and completing the core Neev community service requirement.</p>'),
+('task', NULL, '<p class="cert-text">for taking initiative, showing great accountability, and successfully delivering the critical organizational task: <br><strong style="color: #0F172A; font-size: 1.1em;">"{{title}}"</strong>.</p>'),
+('event', 'Teaching & Mentorship', '<p class="cert-text">for their invaluable guidance, patience, and mentorship provided to scholarship students during the <strong style="color: #0F172A;">{{title}}</strong> initiative.</p>'),
+('event', 'Tech & Development', '<p class="cert-text">for their technical excellence and code contributions towards building the <strong style="color: #0F172A;">{{title}}</strong> platform.</p>'),
+('event', 'Media & Photography', '<p class="cert-text">for capturing the spirit of our community through exceptional visual coverage of the <strong style="color: #0F172A;">{{title}}</strong>.</p>'),
+('event', 'Content & Design', '<p class="cert-text">for their creative vision and design contributions powering the <strong style="color: #0F172A;">{{title}}</strong> initiative.</p>'),
+('event', 'Wall Painting', '<p class="cert-text">for their artistic effort and hard work in beautifying community spaces during the <strong style="color: #0F172A;">{{title}}</strong> drive.</p>'),
+('event', 'Core & Planning', '<p class="cert-text">for their exceptional leadership and organizational skills executing the <strong style="color: #0F172A;">{{title}}</strong>.</p>'),
+('event', 'Other', '<p class="cert-text">for their active participation and successful completion of the <strong style="color: #0F172A;">{{title}}</strong> initiative.</p>');
+
 
 -- =====================================================
 -- 5. GAMIFICATION (Ranks & Badges)
@@ -189,16 +221,36 @@ CREATE TABLE user_badges (
 );
 
 INSERT INTO ranks (name, min_hours, icon_name, color_hex) VALUES 
-('Rookie', 0, 'shield', '#64748B'),
-('Bronze Leader', 20, 'award', '#D97706'),
-('Silver Leader', 50, 'star', '#94A3B8'),
-('Gold Leader', 100, 'crown', '#EAB308');
+('Neev Initiate', 0, 'user', '#94A3B8'),           
+('Spark of Change', 15, 'zap', '#FBBF24'),         
+('Guiding Light', 30, 'compass', '#34D399'),       
+('Values Catalyst', 45, 'flame', '#F43F5E'),       
+('Neev Ambassador', 60, 'award', '#8B5CF6'),       
+('Neev Luminary', 80, 'crown', '#F59E0B'),         
+('Neev Visionary', 100, 'diamond', '#06B6D4');     
 
 INSERT INTO badges (name, description, icon_name, target_category, criteria_metric, criteria_value) VALUES 
-('Eco Warrior', 'Attended 3 Cleanliness Drives', 'leaf', 'Cleanliness', 'events_count', 3),
-('Hunger Hero', 'Attended 5 Food Drives', 'utensils', 'Food Drive', 'events_count', 5),
-('Vidya Guru', 'Logged 15 hours of Teaching', 'book-open', 'Teaching', 'hours', 15),
-('First Blood', 'Attended your very first event', 'check-circle', NULL, 'events_count', 1);
+('The First Brick', 'Completed your very first Neev task or event.', 'check-circle', NULL, 'events_count', 1),
+('Halfway There!', 'Logged 30 hours. You are halfway to your college requirement!', 'star', NULL, 'hours', 30),
+('The Finisher', 'Successfully completed the 60-hour Neev program requirement.', 'flag', NULL, 'hours', 60),
+('SME Buddy', 'Mentored scholarship students for 10 hours.', 'book-open', 'Teaching & Mentorship', 'hours', 10),
+('Knowledge Weaver', 'Dedicated 25+ hours to resolving student doubts and mobile addiction counseling.', 'heart-handshake', 'Teaching & Mentorship', 'hours', 25),
+('Digital Builder', 'Contributed 10 hours to building the Neev student tracking platform.', 'code', 'Tech & Development', 'hours', 10),
+('System Architect', 'Logged 25+ hours writing code and managing tech data.', 'cpu', 'Tech & Development', 'hours', 25),
+('Lens Master', 'Covered 3 events as the official Neev photographer.', 'camera', 'Media & Photography', 'events_count', 3),
+('Creative Artisan', 'Designed content or graphics for 5 different Neev tasks.', 'palette', 'Content & Design', 'events_count', 5),
+('Mural Maestro', 'Dedicated 10 hours to beautifying spaces through wall painting.', 'paint-bucket', 'Wall Painting', 'hours', 10),
+('Core Coordinator', 'Planned and executed 5 organizational tasks for the Neev initiative.', 'clipboard-list', 'Core & Planning', 'events_count', 5),
+('Digital Megaphone', 'Managed social media or content for 10 activities.', 'share-2', 'Content & Design', 'events_count', 10),
+('Code Ninja', 'Logged 40+ hours developing the Neev tracking platform.', 'terminal-square', 'Tech & Development', 'hours', 40),
+('Street Picasso', 'Transformed communities with 20+ hours of wall painting.', 'brush', 'Wall Painting', 'hours', 20),
+('Mindful Mentor', 'Dedicated 20 hours to ethics counseling and study focus sessions.', 'brain-circuit', 'Teaching & Mentorship', 'hours', 20),
+('SME Champion', 'Attended 10 different mentorship sessions with scholarship students.', 'users', 'Teaching & Mentorship', 'events_count', 10),
+('Master Organizer', 'Planned, assigned, and executed 15 core tasks.', 'layers', 'Core & Planning', 'events_count', 15),
+('Consistent Contributor', 'Completed 10 total activities (Tasks or Events).', 'activity', NULL, 'events_count', 10),
+('Relentless Seva', 'Completed 25 total activities. Your dedication is unmatched!', 'flame', NULL, 'events_count', 25),
+('Century Club', 'Logged a massive 100 hours in the Neev program.', 'trophy', NULL, 'hours', 100),
+('The Extra Mile', 'Reached 75 hours, going 15 hours beyond the college requirement.', 'rocket', NULL, 'hours', 75);
 
 -- =====================================================
 -- 6. FUNCTIONS & TRIGGERS
@@ -227,15 +279,28 @@ EXECUTE FUNCTION calculate_attendance_hours();
 
 
 -- =====================================================
--- GENERALIZED CERTIFICATE TRIGGER (Handles BOTH Events & Tasks)
+-- UPDATED: GENERALIZED CERTIFICATE TRIGGER
+-- Now automatically injects dynamic descriptions from templates!
 -- =====================================================
 CREATE OR REPLACE FUNCTION generate_activity_certificates() RETURNS TRIGGER AS $$
+DECLARE
+    v_template TEXT;
+    v_desc TEXT;
 BEGIN
     IF TG_TABLE_NAME = 'events' THEN
         -- Handle Event Completion
         IF NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed' THEN
-            INSERT INTO certificates (user_id, type, event_id, hours_credited)
-            SELECT volunteer_id, 'event', NEW.event_id, hours_logged
+            
+            -- Fetch matching template (fallback to 'Other' if specific category isn't found)
+            SELECT template_text INTO v_template FROM certificate_templates 
+            WHERE cert_type = 'event' AND (event_category = NEW.category OR event_category = 'Other')
+            ORDER BY CASE WHEN event_category = NEW.category THEN 1 ELSE 2 END LIMIT 1;
+            
+            -- Inject the Event Title into the template
+            v_desc := REPLACE(v_template, '{{title}}', NEW.title);
+
+            INSERT INTO certificates (user_id, type, event_id, hours_credited, description)
+            SELECT volunteer_id, 'event', NEW.event_id, hours_logged, v_desc
             FROM attendance WHERE event_id = NEW.event_id AND status = 'present'
             ON CONFLICT (user_id, event_id) DO NOTHING;
         END IF;
@@ -244,8 +309,15 @@ BEGIN
         -- Handle Task Completion
         IF NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed' THEN
             IF NEW.hours_awarded > 0 THEN
-                INSERT INTO certificates (user_id, type, task_id, hours_credited)
-                VALUES (NEW.assigned_to, 'task', NEW.task_id, NEW.hours_awarded)
+                
+                -- Fetch Task template
+                SELECT template_text INTO v_template FROM certificate_templates WHERE cert_type = 'task' LIMIT 1;
+                
+                -- Inject the Task Title into the template
+                v_desc := REPLACE(v_template, '{{title}}', NEW.title);
+
+                INSERT INTO certificates (user_id, type, task_id, hours_credited, description)
+                VALUES (NEW.assigned_to, 'task', NEW.task_id, NEW.hours_awarded, v_desc)
                 ON CONFLICT (user_id, task_id) DO NOTHING;
             END IF;
         END IF;
@@ -310,13 +382,16 @@ CREATE TRIGGER trigger_evaluate_task_badges AFTER INSERT OR UPDATE OF status, ho
 
 
 -- =====================================================
--- MASTER CERTIFICATE TRIGGER
+-- UPDATED: MASTER CERTIFICATE TRIGGER
+-- Now automatically injects dynamic descriptions from templates!
 -- =====================================================
 CREATE OR REPLACE FUNCTION update_master_certificate() RETURNS TRIGGER AS $$
 DECLARE
     v_user_id UUID;
     total_hrs NUMERIC(7,2);
     cert_exists BOOLEAN;
+    v_template TEXT;
+    v_desc TEXT;
 BEGIN
     IF TG_TABLE_NAME = 'attendance' THEN
         v_user_id := NEW.volunteer_id;
@@ -332,10 +407,17 @@ BEGIN
     IF total_hrs >= 60.00 THEN
         SELECT EXISTS(SELECT 1 FROM certificates WHERE user_id = v_user_id AND type = 'master') INTO cert_exists;
         
+        -- Fetch Master template and inject the Total Hours
+        SELECT template_text INTO v_template FROM certificate_templates WHERE cert_type = 'master' LIMIT 1;
+        v_desc := REPLACE(v_template, '{{hours}}', total_hrs::TEXT);
+
         IF cert_exists THEN
-            UPDATE certificates SET hours_credited = total_hrs, issued_at = CURRENT_TIMESTAMP WHERE user_id = v_user_id AND type = 'master';
+            UPDATE certificates 
+            SET hours_credited = total_hrs, issued_at = CURRENT_TIMESTAMP, description = v_desc 
+            WHERE user_id = v_user_id AND type = 'master';
         ELSE
-            INSERT INTO certificates (user_id, type, hours_credited) VALUES (v_user_id, 'master', total_hrs);
+            INSERT INTO certificates (user_id, type, hours_credited, description) 
+            VALUES (v_user_id, 'master', total_hrs, v_desc);
         END IF;
     END IF;
     
@@ -343,7 +425,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trig_master_cert_att AFTER INSERT OR UPDATE OF status, hours_logged ON attendance FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
+CREATE TRIGGER trig_master_cert_att AFTER INSERT OR UPDATE OF status, check_out_time ON attendance FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
 CREATE TRIGGER trig_master_cert_task AFTER INSERT OR UPDATE OF status, hours_awarded ON tasks FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
 
 -- =====================================================

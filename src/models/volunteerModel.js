@@ -148,12 +148,12 @@ const VolunteerModel = {
     },
 
     /**
-     * NEW: Fetch all certificates for the logged-in user
+     * Fetch all certificates for the logged-in user
      */
     getMyCertificates: async (userId) => {
         const query = `
             SELECT 
-                c.certificate_id, c.type, c.hours_credited, c.issued_at,
+                c.certificate_id, c.type, c.hours_credited, c.issued_at, c.description,
                 COALESCE(e.title, t.title) AS event_title, 
                 e.event_date
             FROM certificates c
@@ -167,12 +167,12 @@ const VolunteerModel = {
     },
 
     /**
-     * NEW: Fetch specific certificate data for PDF generation
+     * Fetch specific certificate data for PDF generation
      */
     getCertificateData: async (certificateId, userId) => {
         const query = `
             SELECT 
-                c.certificate_id, c.type, c.hours_credited, c.issued_at,
+                c.certificate_id, c.type, c.hours_credited, c.issued_at, c.description,
                 COALESCE(e.title, t.title) AS event_title, 
                 e.event_date,
                 u.first_name, u.last_name
