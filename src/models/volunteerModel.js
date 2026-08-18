@@ -186,7 +186,7 @@ const VolunteerModel = {
     },
 
     /**
-     * NEW: Fetch the global community feed
+     * NEW: Fetch the global community feed (Filtered for public milestones)
      */
     getCommunityFeed: async (limit = 15) => {
         const query = `
@@ -200,6 +200,14 @@ const VolunteerModel = {
             FROM event_timeline t
             JOIN users u ON t.user_id = u.user_id
             LEFT JOIN events e ON t.event_id = e.event_id
+            WHERE t.action NOT ILIKE '%QR Generated%'
+              AND t.action NOT ILIKE '%checked in%'
+              AND t.action NOT ILIKE '%checked out%'
+              AND t.action NOT ILIKE '%withdrew%'
+              AND t.action NOT ILIKE '%registration completed%'
+              AND t.action NOT ILIKE '%manually updated%'
+              AND t.action NOT ILIKE '%soft-deleted%'
+              AND t.action NOT ILIKE '%Draft%'
             ORDER BY t.timestamp DESC
             LIMIT $1;
         `;
