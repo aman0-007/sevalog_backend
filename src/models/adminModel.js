@@ -11,10 +11,10 @@ const AdminModel = {
             db.query(`
                 SELECT 
                     (SELECT COUNT(*)::INT FROM users WHERE role = 'volunteer' AND is_active = TRUE) AS total_active_volunteers,
-                    (SELECT COUNT(*)::INT FROM users WHERE role = 'volunteer' AND created_at >= date_trunc('month', CURRENT_DATE)) AS new_volunteers_this_month,
+                    (SELECT COUNT(*)::INT FROM users WHERE role = 'volunteer' AND created_at >= date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')) AS new_volunteers_this_month,
                     (SELECT COALESCE(SUM(hours_logged), 0)::NUMERIC(10,2) FROM attendance WHERE status = 'present') AS total_seva_hours,
                     (SELECT COUNT(*)::INT FROM events WHERE is_deleted = FALSE AND status = 'completed') AS total_completed_events,
-                    (SELECT COUNT(*)::INT FROM events WHERE is_deleted = FALSE AND status = 'published' AND event_date >= CURRENT_DATE) AS upcoming_published_events,
+                    (SELECT COUNT(*)::INT FROM events WHERE is_deleted = FALSE AND status = 'published' AND event_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date) AS upcoming_published_events,
                     (SELECT COUNT(*)::INT FROM events WHERE is_deleted = FALSE AND status = 'draft') AS action_required_drafts
             `),
 
@@ -34,7 +34,7 @@ const AdminModel = {
                     event_id, title, event_date, start_time, 
                     volunteers_needed, current_registered_count
                 FROM active_events_view
-                WHERE event_date >= CURRENT_DATE
+                WHERE event_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
                 ORDER BY event_date ASC, start_time ASC
                 LIMIT 5;
             `),
@@ -176,7 +176,7 @@ const AdminModel = {
                   AND event_id IN (
                       SELECT event_id FROM events 
                       WHERE status IN ('draft', 'published') 
-                        AND event_date >= CURRENT_DATE
+                        AND event_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
                   );
             `, [volunteerId]);
 

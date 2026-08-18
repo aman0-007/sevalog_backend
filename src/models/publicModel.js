@@ -21,17 +21,15 @@ const PublicModel = {
 
                 -- Calculate real-time dynamic phase
                 CASE 
-                    WHEN CURRENT_DATE = e.event_date AND CURRENT_TIME BETWEEN e.start_time AND e.end_time THEN 'ongoing'
+                    WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date = e.event_date AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time BETWEEN e.start_time AND e.end_time THEN 'ongoing'
                     ELSE 'upcoming'
                 END AS time_phase
-
             FROM events e
             WHERE e.is_deleted = FALSE 
               AND e.status = 'published' 
-              -- Must be in the future, OR happening today but hasn't ended yet
               AND (
-                  e.event_date > CURRENT_DATE 
-                  OR (e.event_date = CURRENT_DATE AND e.end_time > CURRENT_TIME)
+                  e.event_date > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date 
+                  OR (e.event_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date AND e.end_time > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time)
               )
             ORDER BY e.event_date ASC, e.start_time ASC
             LIMIT 1;

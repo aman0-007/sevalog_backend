@@ -115,8 +115,9 @@ const VolunteerModel = {
                 JOIN events e ON a.event_id = e.event_id
                 WHERE a.volunteer_id = $1 
                   AND a.status = 'registered' 
-                  AND (e.event_date > CURRENT_DATE OR (e.event_date = CURRENT_DATE AND e.end_time > CURRENT_TIME))
-                  AND e.status IN ('published')
+                  AND (e.event_date > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date OR 
+                      (e.event_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date AND e.end_time > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time))
+                  AND e.status IN ('published', 'ongoing')
                 ORDER BY e.event_date ASC, e.start_time ASC
                 LIMIT 3;
             `, [userId]),
