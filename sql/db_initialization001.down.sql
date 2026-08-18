@@ -21,7 +21,12 @@ DROP TRIGGER IF EXISTS trigger_evaluate_task_badges ON tasks;
 DROP TRIGGER IF EXISTS trigger_evaluate_badges ON attendance;
 DROP FUNCTION IF EXISTS trigger_evaluate_badges_func() CASCADE;
 
--- Certificate Triggers
+-- Master Certificate Triggers (NEW)
+DROP TRIGGER IF EXISTS trig_master_cert_att ON attendance;
+DROP TRIGGER IF EXISTS trig_master_cert_task ON tasks;
+DROP FUNCTION IF EXISTS update_master_certificate() CASCADE;
+
+-- Event Certificate Triggers
 DROP TRIGGER IF EXISTS trigger_auto_certificates ON events;
 DROP FUNCTION IF EXISTS generate_event_certificates() CASCADE;
 

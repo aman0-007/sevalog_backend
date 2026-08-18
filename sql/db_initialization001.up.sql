@@ -289,6 +289,65 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trigger_evaluate_badges AFTER INSERT OR UPDATE OF status, check_out_time ON attendance FOR EACH ROW EXECUTE FUNCTION trigger_evaluate_badges_func();
 CREATE TRIGGER trigger_evaluate_task_badges AFTER INSERT OR UPDATE OF status, hours_awarded ON tasks FOR EACH ROW EXECUTE FUNCTION trigger_evaluate_badges_func();
 
+
+-- =====================================================
+-- THE MASTER CERTIFICATE TRIGGER
+-- =====================================================
+
+-- Auto-generate and Auto-update the 60-Hour Master Certificate
+CREATE OR REPLACE FUNCTION update_master_certificate() RETURNS TRIGGER AS $$
+DECLARE
+    v_user_id UUID;
+    total_hrs NUMERIC(7,2);
+    cert_exists BOOLEAN;
+BEGIN
+    -- 1. Identify the user based on which table triggered this
+    IF TG_TABLE_NAME = 'attendance' THEN
+        v_user_id := NEW.volunteer_id;
+    ELSIF TG_TABLE_NAME = 'tasks' THEN
+        v_user_id := NEW.assigned_to;
+    END IF;
+
+    -- 2. Calculate the user's live grand total of approved hours (Events + Tasks) directly
+    SELECT 
+        COALESCE((SELECT SUM(hours_logged) FROM attendance WHERE volunteer_id = v_user_id AND status = 'present'), 0) +
+        COALESCE((SELECT SUM(hours_awarded) FROM tasks WHERE assigned_to = v_user_id AND status = 'completed'), 0)
+    INTO total_hrs;
+
+    -- 3. If they hit the 60 hour milestone, award or update the master certificate
+    IF total_hrs >= 60.00 THEN
+        -- Check if they already have a master certificate
+        SELECT EXISTS(SELECT 1 FROM certificates WHERE user_id = v_user_id AND type = 'master') INTO cert_exists;
+        
+        IF cert_exists THEN
+            -- Update the existing master certificate with new total hours
+            UPDATE certificates 
+            SET hours_credited = total_hrs, issued_at = CURRENT_TIMESTAMP 
+            WHERE user_id = v_user_id AND type = 'master';
+        ELSE
+            -- Create their first master certificate (event_id is implicitly NULL)
+            INSERT INTO certificates (user_id, type, hours_credited) 
+            VALUES (v_user_id, 'master', total_hrs);
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trig_master_cert_att 
+AFTER INSERT OR UPDATE OF status, hours_logged ON attendance 
+FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
+
+CREATE TRIGGER trig_master_cert_task 
+AFTER INSERT OR UPDATE OF status, hours_awarded ON tasks 
+FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
+
+-- =====================================================
+-- END OF MASTER CERTIFICATE TRIGGER
+-- =====================================================
+
+
 -- =====================================================
 -- 7. VIEWS
 -- =====================================================
