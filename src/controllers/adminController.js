@@ -66,7 +66,7 @@ const adminController = {
      */
     getVolunteerProfile: async (req, res) => {
         try {
-            const { id } = req.params;
+            const { userId } = req.params;
             const profile = await AdminModel.getVolunteerDetails(id);
             
             if (!profile) {
