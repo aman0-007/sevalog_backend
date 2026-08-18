@@ -117,7 +117,7 @@ const VolunteerModel = {
                   AND a.status = 'registered' 
                   AND (e.event_date > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date OR 
                       (e.event_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date AND e.end_time > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::time))
-                  AND e.status IN ('published', 'ongoing')
+                  AND e.status IN ('published')
                 ORDER BY e.event_date ASC, e.start_time ASC
                 LIMIT 3;
             `, [userId]),
