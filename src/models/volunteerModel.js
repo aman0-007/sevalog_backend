@@ -153,9 +153,11 @@ const VolunteerModel = {
         const query = `
             SELECT 
                 c.certificate_id, c.type, c.hours_credited, c.issued_at,
-                e.title AS event_title, e.event_date
+                COALESCE(e.title, t.title) AS event_title, 
+                e.event_date
             FROM certificates c
             LEFT JOIN events e ON c.event_id = e.event_id
+            LEFT JOIN tasks t ON c.task_id = t.task_id
             WHERE c.user_id = $1
             ORDER BY c.issued_at DESC;
         `;
@@ -170,11 +172,13 @@ const VolunteerModel = {
         const query = `
             SELECT 
                 c.certificate_id, c.type, c.hours_credited, c.issued_at,
-                e.title AS event_title, e.event_date,
+                COALESCE(e.title, t.title) AS event_title, 
+                e.event_date,
                 u.first_name, u.last_name
             FROM certificates c
             JOIN users u ON c.user_id = u.user_id
             LEFT JOIN events e ON c.event_id = e.event_id
+            LEFT JOIN tasks t ON c.task_id = t.task_id
             WHERE c.certificate_id = $1 AND c.user_id = $2;
         `;
         const { rows } = await db.query(query, [certificateId, userId]);

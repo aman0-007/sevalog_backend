@@ -18,7 +18,7 @@ CREATE TYPE blood_group_type AS ENUM ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+'
 CREATE TYPE event_lifecycle_status AS ENUM ('draft', 'published', 'completed', 'cancelled', 'archived');
 CREATE TYPE task_status AS ENUM ('assigned', 'in_progress', 'pending_verification', 'completed', 'cancelled');
 CREATE TYPE badge_metric AS ENUM ('hours', 'events_count');
-CREATE TYPE certificate_type AS ENUM ('event', 'master');
+CREATE TYPE certificate_type AS ENUM ('event', 'master', 'task');
 CREATE TYPE event_category AS ENUM ('Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other');
 
 -- =====================================================
@@ -105,7 +105,7 @@ CREATE TABLE attendance (
 
 CREATE TABLE event_timeline (
     log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID REFERENCES events(event_id) ON DELETE CASCADE, -- NULLABLE for global badge/system logs
+    event_id UUID REFERENCES events(event_id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
     action VARCHAR(255) NOT NULL,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -126,7 +126,7 @@ CREATE TABLE tasks (
     is_public BOOLEAN DEFAULT TRUE,
     volunteer_remarks TEXT,
     admin_remarks TEXT,
-    hours_awarded NUMERIC(5,2) DEFAULT 0.00, -- Native Task Hours Support
+    hours_awarded NUMERIC(5,2) DEFAULT 0.00, 
     is_deleted BOOLEAN DEFAULT FALSE,
     deleted_at TIMESTAMP WITH TIME ZONE,
     deleted_by UUID REFERENCES users(user_id),
@@ -150,9 +150,11 @@ CREATE TABLE certificates (
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     type certificate_type NOT NULL DEFAULT 'event',
     event_id UUID REFERENCES events(event_id) ON DELETE CASCADE, 
+    task_id UUID REFERENCES tasks(task_id) ON DELETE CASCADE,
     hours_credited NUMERIC(5,2) NOT NULL DEFAULT 0.00,
     issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_event_certificate UNIQUE (user_id, event_id)
+    CONSTRAINT unique_event_certificate UNIQUE (user_id, event_id),
+    CONSTRAINT unique_task_certificate UNIQUE (user_id, task_id)
 );
 
 -- =====================================================
@@ -186,7 +188,6 @@ CREATE TABLE user_badges (
     PRIMARY KEY (user_id, badge_id)
 );
 
--- Seed Initial Ranks & Badges
 INSERT INTO ranks (name, min_hours, icon_name, color_hex) VALUES 
 ('Rookie', 0, 'shield', '#64748B'),
 ('Bronze Leader', 20, 'award', '#D97706'),
@@ -203,7 +204,6 @@ INSERT INTO badges (name, description, icon_name, target_category, criteria_metr
 -- 6. FUNCTIONS & TRIGGERS
 -- =====================================================
 
--- Auto-update `updated_at` column
 CREATE OR REPLACE FUNCTION update_modified_column() RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at := CURRENT_TIMESTAMP; RETURN NEW; END;
 $$ LANGUAGE plpgsql;
@@ -212,7 +212,6 @@ CREATE TRIGGER set_timestamp_users BEFORE UPDATE ON users FOR EACH ROW EXECUTE F
 CREATE TRIGGER set_timestamp_events BEFORE UPDATE ON events FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 CREATE TRIGGER set_timestamp_tasks BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
--- Auto-calculate attendance hours
 CREATE OR REPLACE FUNCTION calculate_attendance_hours() RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL THEN
@@ -226,23 +225,43 @@ CREATE TRIGGER trigger_calculate_hours BEFORE INSERT OR UPDATE OF check_in_time,
 FOR EACH ROW WHEN (NEW.check_in_time IS NOT NULL AND NEW.check_out_time IS NOT NULL)
 EXECUTE FUNCTION calculate_attendance_hours();
 
--- Auto-generate certificates on event completion
-CREATE OR REPLACE FUNCTION generate_event_certificates() RETURNS TRIGGER AS $$
+
+-- =====================================================
+-- GENERALIZED CERTIFICATE TRIGGER (Handles BOTH Events & Tasks)
+-- =====================================================
+CREATE OR REPLACE FUNCTION generate_activity_certificates() RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed' THEN
-        INSERT INTO certificates (user_id, type, event_id, hours_credited)
-        SELECT volunteer_id, 'event', NEW.event_id, hours_logged
-        FROM attendance WHERE event_id = NEW.event_id AND status = 'present'
-        ON CONFLICT (user_id, event_id) DO NOTHING;
+    IF TG_TABLE_NAME = 'events' THEN
+        -- Handle Event Completion
+        IF NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed' THEN
+            INSERT INTO certificates (user_id, type, event_id, hours_credited)
+            SELECT volunteer_id, 'event', NEW.event_id, hours_logged
+            FROM attendance WHERE event_id = NEW.event_id AND status = 'present'
+            ON CONFLICT (user_id, event_id) DO NOTHING;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'tasks' THEN
+        -- Handle Task Completion
+        IF NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed' THEN
+            IF NEW.hours_awarded > 0 THEN
+                INSERT INTO certificates (user_id, type, task_id, hours_credited)
+                VALUES (NEW.assigned_to, 'task', NEW.task_id, NEW.hours_awarded)
+                ON CONFLICT (user_id, task_id) DO NOTHING;
+            END IF;
+        END IF;
     END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_auto_certificates AFTER UPDATE OF status ON events
-FOR EACH ROW EXECUTE FUNCTION generate_event_certificates();
+CREATE TRIGGER trigger_auto_event_certificates AFTER UPDATE OF status ON events FOR EACH ROW EXECUTE FUNCTION generate_activity_certificates();
+CREATE TRIGGER trigger_auto_task_certificates AFTER UPDATE OF status ON tasks FOR EACH ROW EXECUTE FUNCTION generate_activity_certificates();
 
--- Unified Gamification Engine (Evaluates Badges based on BOTH Attendance AND Tasks)
+
+-- =====================================================
+-- GAMIFICATION TRIGGER
+-- =====================================================
 CREATE OR REPLACE FUNCTION trigger_evaluate_badges_func() RETURNS TRIGGER AS $$
 DECLARE
     v_user_id UUID;
@@ -291,43 +310,32 @@ CREATE TRIGGER trigger_evaluate_task_badges AFTER INSERT OR UPDATE OF status, ho
 
 
 -- =====================================================
--- THE MASTER CERTIFICATE TRIGGER
+-- MASTER CERTIFICATE TRIGGER
 -- =====================================================
-
--- Auto-generate and Auto-update the 60-Hour Master Certificate
 CREATE OR REPLACE FUNCTION update_master_certificate() RETURNS TRIGGER AS $$
 DECLARE
     v_user_id UUID;
     total_hrs NUMERIC(7,2);
     cert_exists BOOLEAN;
 BEGIN
-    -- 1. Identify the user based on which table triggered this
     IF TG_TABLE_NAME = 'attendance' THEN
         v_user_id := NEW.volunteer_id;
     ELSIF TG_TABLE_NAME = 'tasks' THEN
         v_user_id := NEW.assigned_to;
     END IF;
 
-    -- 2. Calculate the user's live grand total of approved hours (Events + Tasks) directly
     SELECT 
         COALESCE((SELECT SUM(hours_logged) FROM attendance WHERE volunteer_id = v_user_id AND status = 'present'), 0) +
         COALESCE((SELECT SUM(hours_awarded) FROM tasks WHERE assigned_to = v_user_id AND status = 'completed'), 0)
     INTO total_hrs;
 
-    -- 3. If they hit the 60 hour milestone, award or update the master certificate
     IF total_hrs >= 60.00 THEN
-        -- Check if they already have a master certificate
         SELECT EXISTS(SELECT 1 FROM certificates WHERE user_id = v_user_id AND type = 'master') INTO cert_exists;
         
         IF cert_exists THEN
-            -- Update the existing master certificate with new total hours
-            UPDATE certificates 
-            SET hours_credited = total_hrs, issued_at = CURRENT_TIMESTAMP 
-            WHERE user_id = v_user_id AND type = 'master';
+            UPDATE certificates SET hours_credited = total_hrs, issued_at = CURRENT_TIMESTAMP WHERE user_id = v_user_id AND type = 'master';
         ELSE
-            -- Create their first master certificate (event_id is implicitly NULL)
-            INSERT INTO certificates (user_id, type, hours_credited) 
-            VALUES (v_user_id, 'master', total_hrs);
+            INSERT INTO certificates (user_id, type, hours_credited) VALUES (v_user_id, 'master', total_hrs);
         END IF;
     END IF;
     
@@ -335,18 +343,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trig_master_cert_att 
-AFTER INSERT OR UPDATE OF status, hours_logged ON attendance 
-FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
-
-CREATE TRIGGER trig_master_cert_task 
-AFTER INSERT OR UPDATE OF status, hours_awarded ON tasks 
-FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
-
--- =====================================================
--- END OF MASTER CERTIFICATE TRIGGER
--- =====================================================
-
+CREATE TRIGGER trig_master_cert_att AFTER INSERT OR UPDATE OF status, hours_logged ON attendance FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
+CREATE TRIGGER trig_master_cert_task AFTER INSERT OR UPDATE OF status, hours_awarded ON tasks FOR EACH ROW EXECUTE FUNCTION update_master_certificate();
 
 -- =====================================================
 -- 7. VIEWS
@@ -389,7 +387,7 @@ FROM user_combined_stats us
 LEFT JOIN user_earned_badges ub ON us.user_id = ub.user_id;
 
 -- =====================================================
--- 8. INDEXES (Optimized for Dashboard & Triggers)
+-- 8. INDEXES 
 -- =====================================================
 CREATE INDEX idx_events_date ON events(event_date);
 CREATE INDEX idx_events_status ON events(status);
