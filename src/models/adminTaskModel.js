@@ -13,7 +13,7 @@ const AdminTaskModel = {
 
             const insertQuery = `
                 INSERT INTO tasks (
-                    event_id, created_by, assigned_to, title, description, deadline, is_public
+                    event_id, created_by, assigned_to, title, description, deadline, is_public, hours_awarded
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING *;
             `;
