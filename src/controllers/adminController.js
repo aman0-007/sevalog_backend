@@ -67,7 +67,7 @@ const adminController = {
     getVolunteerProfile: async (req, res) => {
         try {
             const { userId } = req.params;
-            const profile = await AdminModel.getVolunteerDetails(id);
+            const profile = await AdminModel.getVolunteerDetails(userId);
             
             if (!profile) {
                 return res.status(404).json({ 
