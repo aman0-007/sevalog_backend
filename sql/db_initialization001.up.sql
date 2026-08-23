@@ -4,7 +4,7 @@
 -- =====================================================
 
 -- Database Setup
-CREATE DATABASE chembur_samithi_seva;
+CREATE DATABASE IF NOT EXISTS chembur_samithi_seva;
 \c chembur_samithi_seva;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
