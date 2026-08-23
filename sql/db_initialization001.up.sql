@@ -4,7 +4,12 @@
 -- =====================================================
 
 -- Database Setup
-CREATE DATABASE IF NOT EXISTS chembur_samithi_seva;
+SELECT 'CREATE DATABASE chembur_samithi_seva'
+WHERE NOT EXISTS (
+    SELECT FROM pg_database
+    WHERE datname = 'chembur_samithi_seva'
+)\gexec
+
 \c chembur_samithi_seva;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
