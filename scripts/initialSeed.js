@@ -62,7 +62,7 @@ async function seedUsers() {
         // =========================
         // ADMIN
         // =========================
-        const admin = {
+        const admin2 = {
             role: "admin",
             first_name: "Master",
             last_name: "Admin",
@@ -71,10 +71,19 @@ async function seedUsers() {
             profession: "System Administrator"
         };
 
+        const admin = {
+            role: "admin",
+            first_name: "Bhargav",
+            last_name: "Godbole",
+            email: "bhargavgodbole7@gmail.com",
+            password: "Bhargav@2007",
+            profession: "System Administrator"
+        };
+
         // =========================
         // VOLUNTEER USER
         // =========================
-        const user = {
+        const user1 = {
             role: "volunteer",
             first_name: "Aman",
             last_name: "Dwivedi",
@@ -84,7 +93,8 @@ async function seedUsers() {
         };
 
         await createUser(admin);
-        await createUser(user);
+        await createUser(admin2);
+        await createUser(user1);
 
     } catch (err) {
         console.error("❌ Seeding failed:", err);
