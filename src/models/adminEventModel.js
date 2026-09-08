@@ -240,7 +240,8 @@ const AdminEventModel = {
         const client = await db.connect();
         try {
             await client.query("BEGIN");
-            // Lock event
+            
+            // 1. Lock event
             const eventResult = await client.query(
                 `
                 SELECT *
@@ -251,25 +252,30 @@ const AdminEventModel = {
                 `,
                 [eventId]
             );
+            
             if (eventResult.rows.length === 0) {
                 throw new Error("EVENT_NOT_FOUND");
             }
+            
             const event = eventResult.rows[0];
             if (event.status !== "published") {
                 throw new Error("INVALID_EVENT_STATUS");
             }
+            
             const now = new Date();
             const evDate = event.event_date;
             const yyyy = evDate.getFullYear();
             const mm = String(evDate.getMonth() + 1).padStart(2, '0');
             const dd = String(evDate.getDate()).padStart(2, '0');
+            
             // Append +05:30 to explicitly evaluate the end time in IST
             const eventEnd = new Date(`${yyyy}-${mm}-${dd}T${event.end_time}+05:30`);
 
             if (now < eventEnd) {
                 throw new Error("EVENT_NOT_FINISHED");
             }
-            // Volunteers who never checked in are absent
+
+            // 2. Volunteers who never checked in are absent
             await client.query(
                 `
                 UPDATE attendance
@@ -280,9 +286,7 @@ const AdminEventModel = {
                 [eventId]
             );
 
-            // 2. Volunteers who were left on the waitlist are withdrawn (no penalty)
-            // Note: Since 'waitlisted' might not exist in the DB ENUM based on your schema, 
-            // we cast it to text or handle it safely if you plan to add it later.
+            // 3. Volunteers who were left on the waitlist are withdrawn (no penalty)
             await client.query(
                 `
                 UPDATE attendance
@@ -292,41 +296,43 @@ const AdminEventModel = {
                 `,
                 [eventId]
             );
-            // Complete event
+
+            // 4. NEW: Auto-Checkout "Orphaned" Check-ins
+            // Triggers will automatically calculate hours_logged, award badges, and issue certificates.
+            await client.query(
+                `
+                UPDATE attendance
+                SET check_out_time = $2
+                WHERE event_id = $1
+                AND status = 'present'
+                AND check_out_time IS NULL
+                `,
+                [eventId, eventEnd]
+            );
+
+            // 5. Complete event
             const updateResult = await client.query(
                 `
                 UPDATE events
-                SET
-                    status = 'completed'
+                SET status = 'completed'
                 WHERE event_id = $1
                 RETURNING *;
                 `,
                 [eventId]
             );
-            // Timeline
+            
+            // 6. Timeline Audit
             await client.query(
                 `
-                INSERT INTO event_timeline
-                (
-                    event_id,
-                    user_id,
-                    action
-                )
-                VALUES
-                (
-                    $1,
-                    $2,
-                    $3
-                )
+                INSERT INTO event_timeline (event_id, user_id, action)
+                VALUES ($1, $2, $3)
                 `,
-                [
-                    eventId,
-                    adminId,
-                    'Event Completed'
-                ]
+                [eventId, adminId, 'Event Completed']
             );
+            
             await client.query("COMMIT");
             return updateResult.rows[0];
+            
         } catch (error) {
             await client.query("ROLLBACK");
             throw error;

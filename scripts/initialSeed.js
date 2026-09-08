@@ -103,8 +103,7 @@ async function seedUsers() {
 
 seedUsers();
 
-// Run:
-// node scripts/initialSeed.js
+// Run:// node scripts/initialSeed.js
 //
 // Or:
 // npm run db:seed-admin
