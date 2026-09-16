@@ -56,9 +56,10 @@ const VolunteerEventController = {
                 return res.status(400).json({ success: false, message: 'QR token is required.' });
             }
 
+            const jwtSecret = process.env.JWT_SECRET || 'sevalog_jwt_secret_dev_key_2026';
             let decoded;
             try {
-                decoded = jwt.verify(qrToken, process.env.JWT_SECRET);
+                decoded = jwt.verify(qrToken, jwtSecret);
             } catch (err) {
                 return res.status(401).json({ 
                     success: false, 
@@ -94,9 +95,10 @@ const VolunteerEventController = {
                 return res.status(400).json({ success: false, message: "Checkout QR token is missing." });
             }
 
+            const jwtSecret = process.env.JWT_SECRET || 'sevalog_jwt_secret_dev_key_2026';
             let decoded;
             try {
-                decoded = jwt.verify(qrToken, process.env.JWT_SECRET);
+                decoded = jwt.verify(qrToken, jwtSecret);
             } catch (err) {
                 return res.status(401).json({
                     success: false,

@@ -30,7 +30,15 @@ const AdminEventController = {
             }
 
             // NEW: Validate Category against the DB ENUM
-            const validCategories = ['Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other'];
+            const validCategories = [
+                'Teaching & Mentorship',
+                'Tech & Development',
+                'Media & Photography',
+                'Content & Design',
+                'Wall Painting',
+                'Core & Planning',
+                'Other'
+            ];
             let finalCategory = 'Other'; // Default
             if (category) {
                 if (!validCategories.includes(category)) {
@@ -145,7 +153,15 @@ const AdminEventController = {
             ];
 
             if (req.body.category) {
-                const validCategories = ['Cleanliness', 'Food Drive', 'Teaching', 'Medical Camp', 'Animal Welfare', 'Other'];
+                const validCategories = [
+                    'Teaching & Mentorship',
+                    'Tech & Development',
+                    'Media & Photography',
+                    'Content & Design',
+                    'Wall Painting',
+                    'Core & Planning',
+                    'Other'
+                ];
                 if (!validCategories.includes(req.body.category)) {
                     return res.status(400).json({ success: false, message: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
                 }
@@ -373,6 +389,68 @@ const AdminEventController = {
     },
 
     /**
+     * Manual Attendance Override by eventId & registrationId (attendance_id)
+     * PATCH /api/admin/events/:id/attendance/:registrationId
+     */
+    updateAttendanceByRegistrationId: async (req, res) => {
+        try {
+            const { id: eventId, registrationId } = req.params;
+            const adminId = req.user.userId;
+            const { status, check_in_time, check_out_time, hours_logged, admin_remarks } = req.body;
+
+            if (!registrationId) {
+                return res.status(400).json({ success: false, message: 'registrationId is required in the path parameter.' });
+            }
+
+            // Optional status validation against ENUM
+            const validStatuses = ['registered', 'withdrawn', 'present', 'absent', 'waitlisted'];
+            if (status && !validStatuses.includes(status)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid attendance status. Allowed values: ${validStatuses.join(', ')}`
+                });
+            }
+
+            const updatePayload = {
+                status: status || null,
+                check_in_time: check_in_time !== undefined ? check_in_time : undefined,
+                check_out_time: check_out_time !== undefined ? check_out_time : undefined,
+                hours_logged: hours_logged !== undefined ? hours_logged : null,
+                admin_remarks: admin_remarks || null
+            };
+
+            const updatedRecord = await AdminEventModel.updateManualAttendance(
+                eventId,
+                registrationId,
+                updatePayload,
+                adminId,
+                true // isRegistrationId = true
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Attendance record updated successfully.',
+                data: updatedRecord
+            });
+        } catch (error) {
+            if (error.code === '22P02') {
+                return res.status(400).json({ success: false, message: 'Invalid UUID format provided for event or registration ID.' });
+            }
+            if (error.message === "ATTENDANCE_RECORD_NOT_FOUND") {
+                return res.status(404).json({
+                    success: false,
+                    message: "No registration record found matching this registration ID for this specific event. Only pre-registered volunteers can have their attendance updated."
+                });
+            }
+            if (error.message === "NO_DATA_PROVIDED") {
+                return res.status(400).json({ success: false, message: "No updatable attendance fields provided in request body." });
+            }
+            console.error('[Manual Registration Attendance Error]:', error);
+            return res.status(500).json({ success: false, message: 'Failed to update attendance record.' });
+        }
+    },
+
+    /**
      * Manual Attendance Override
      */
     manualAttendanceUpdate: async (req, res) => {
@@ -393,7 +471,7 @@ const AdminEventController = {
                 admin_remarks: admin_remarks || null
             };
 
-            const updatedRecord = await AdminEventModel.updateManualAttendance(eventId, volunteer_id, updatePayload, adminId);
+            const updatedRecord = await AdminEventModel.updateManualAttendance(eventId, volunteer_id, updatePayload, adminId, false);
 
             return res.status(200).json({
                 success: true,

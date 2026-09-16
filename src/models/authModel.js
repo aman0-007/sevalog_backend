@@ -71,6 +71,22 @@ const AuthModel = {
     },
 
     /**
+     * Get full active user profile by ID for session restoration (/api/auth/me)
+     */
+    getUserById: async (userId) => {
+        const queryText = `
+            SELECT 
+                user_id, role, first_name, last_name, email, phone_number,
+                college_name, profession, city, state, blood_group, is_active,
+                created_at, updated_at
+            FROM users 
+            WHERE user_id = $1 AND is_active = TRUE;
+        `;
+        const { rows } = await db.query(queryText, [userId]);
+        return rows[0] || null;
+    },
+
+    /**
      * Update user password
      */
     updatePassword: async (userId, passwordHash) => {

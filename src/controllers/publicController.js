@@ -177,13 +177,27 @@ const publicController = {
                 });
             }
 
+            let activityName = cert.event_title;
+            if (!activityName) {
+                if (cert.type === 'master') {
+                    activityName = "Overall Master Certificate";
+                } else if (cert.type === 'task') {
+                    activityName = "Task Contribution Certificate";
+                } else {
+                    activityName = "Community Seva Certificate";
+                }
+            }
+
             return res.status(200).json({
                 success: true,
                 status: "Valid",
                 data: {
+                    certificate_id: cert.certificate_id,
                     volunteer_name: `${cert.first_name} ${cert.last_name}`,
-                    event: cert.event_title || "Overall Master Certificate",
+                    event: activityName,
+                    certificate_type: cert.type,
                     hours: cert.hours_credited,
+                    description: cert.description,
                     issued_at: cert.issued_at
                 }
             });
@@ -194,6 +208,61 @@ const publicController = {
             }
             console.error('[Public Verification Error]:', error);
             return res.status(500).json({ success: false, message: 'Server error during verification.' });
+        }
+    },
+
+    /**
+     * Download public certificate data (for rendering certificate badge/canvas/PDF)
+     * GET /api/public/verify-certificate/:id/download
+     */
+    downloadPublicCertificate: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const cert = await PublicModel.verifyCertificate(id);
+
+            if (!cert) {
+                return res.status(404).json({
+                    success: false,
+                    status: "Invalid",
+                    message: "Certificate not found or does not exist."
+                });
+            }
+
+            let activityName = cert.event_title;
+            if (!activityName) {
+                if (cert.type === 'master') {
+                    activityName = "Overall Master Certificate";
+                } else if (cert.type === 'task') {
+                    activityName = "Task Contribution Certificate";
+                } else {
+                    activityName = "Community Seva Certificate";
+                }
+            }
+
+            return res.status(200).json({
+                success: true,
+                status: "Valid",
+                data: {
+                    certificate_id: cert.certificate_id,
+                    type: cert.type,
+                    hours_credited: cert.hours_credited,
+                    issued_at: cert.issued_at,
+                    description: cert.description,
+                    event_title: activityName,
+                    event_date: cert.event_date || null,
+                    first_name: cert.first_name,
+                    last_name: cert.last_name,
+                    volunteer_name: `${cert.first_name} ${cert.last_name}`
+                }
+            });
+
+        } catch (error) {
+            if (error.code === '22P02') {
+                return res.status(400).json({ success: false, status: "Invalid", message: "Invalid certificate format." });
+            }
+            console.error('[Public Certificate Download Error]:', error);
+            return res.status(500).json({ success: false, message: 'Server error during certificate retrieval.' });
         }
     }
 };

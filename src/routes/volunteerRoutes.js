@@ -32,10 +32,12 @@ router.use(isVolunteer);
  *     responses:
  *       200:
  *         description: Profile data retrieved successfully
- *       404:
- *         description: Profile not found
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Server error
  */
 router.get('/profile', volunteerController.getMyProfile);
 
@@ -61,11 +63,48 @@ router.get('/profile', volunteerController.getMyProfile);
  *                 type: string
  *               phoneNumber:
  *                 type: string
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *               gender:
+ *                 type: string
+ *                 enum: [Male, Female, Other]
+ *               bloodGroup:
+ *                 type: string
+ *                 enum: [A+, A-, B+, B-, AB+, AB-, O+, O-]
+ *               residentialAddress:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               pincode:
+ *                 type: string
+ *               emergencyContactName:
+ *                 type: string
+ *               emergencyContactRelation:
+ *                 type: string
+ *               emergencyContactNumber:
+ *                 type: string
+ *               medicalConditions:
+ *                 type: string
+ *               educationLevel:
+ *                 type: string
  *               collegeName:
  *                 type: string
+ *                 description: "Either collegeName or profession must be provided"
  *               profession:
  *                 type: string
+ *                 description: "Either collegeName or profession must be provided"
  *               skills:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               languagesSpoken:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               interestedActivities:
  *                 type: array
  *                 items:
  *                   type: string
@@ -76,6 +115,8 @@ router.get('/profile', volunteerController.getMyProfile);
  *         description: Validation error (e.g., missing college/profession)
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.put('/profile', volunteerController.updateMyProfile);
 
@@ -93,6 +134,8 @@ router.put('/profile', volunteerController.updateMyProfile);
  *         description: Dashboard data retrieved successfully
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.get('/dashboard', volunteerController.getMyDashboard);
 
@@ -108,6 +151,10 @@ router.get('/dashboard', volunteerController.getMyDashboard);
  *     responses:
  *       200:
  *         description: Feed retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.get('/feed', volunteerController.getCommunityFeed);
 
@@ -146,54 +193,10 @@ router.get('/feed', volunteerController.getCommunityFeed);
  */
 router.get('/leaderboard', volunteerController.getLeaderboard);
 
+
 // ==========================================
-// VOLUNTEER CERTIFICATE ROUTES
+// VOLUNTEER EVENT PARTICIPATION
 // ==========================================
-
-/**
- * @route   GET /api/volunteer/certificates
- * @desc    Get a list of all verifiable certificates earned by the volunteer
- * @swagger
- * /api/volunteer/certificates:
- *   get:
- *     summary: List earned certificates
- *     description: Retrieves all verifiable certificates automatically generated for this volunteer upon event completion.
- *     tags: [Volunteer Certificates]
- *     responses:
- *       200:
- *         description: Certificates retrieved successfully
- *       401:
- *         description: Unauthorized
- */
-router.get('/certificates', volunteerController.listMyCertificates);
-
-/**
- * @route   GET /api/volunteer/certificates/:id/download
- * @desc    Get the exact JSON data needed to draw the certificate on the frontend
- * @swagger
- * /api/volunteer/certificates/{id}/download:
- *   get:
- *     summary: Download certificate data
- *     description: Fetches the exact JSON properties (name, event, hours, date) needed to render the certificate on the frontend HTML5 canvas.
- *     tags: [Volunteer Certificates]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Certificate UUID
- *     responses:
- *       200:
- *         description: Certificate data retrieved successfully
- *       404:
- *         description: Certificate not found or access denied
- *       401:
- *         description: Unauthorized
- */
-router.get('/certificates/:id/download', volunteerController.downloadCertificateData);
-
 
 /**
  * @route   GET /api/volunteer/events
@@ -209,6 +212,8 @@ router.get('/certificates/:id/download', volunteerController.downloadCertificate
  *         description: List of events retrieved successfully
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.get('/events', volunteerEventController.getEvents);
 
@@ -236,6 +241,8 @@ router.get('/events', volunteerEventController.getEvents);
  *         description: Event full, deadline passed, or already registered
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.post('/events/:id/register', volunteerEventController.register);
 
@@ -263,6 +270,8 @@ router.post('/events/:id/register', volunteerEventController.register);
  *         description: Not registered or event already passed
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.post('/events/:id/withdraw', volunteerEventController.withdraw);
 
@@ -294,17 +303,19 @@ router.post('/events/:id/withdraw', volunteerEventController.withdraw);
  *         description: Expired token or invalid QR payload
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.post('/events/check-in', volunteerEventController.checkin);
 
 /**
- * @route   POST /api/volunteer/events/checkout
+ * @route   POST /api/volunteer/events/check-out
  * @desc    Checkout from an event after attendance has been marked
  * @swagger
- * /api/volunteer/events/checkout:
+ * /api/volunteer/events/check-out:
  *   post:
  *     summary: Scan checkout QR code
- *     description: Verifies a checkout token and records check-out time, triggering automated hour tracking.
+ *     description: Verifies a checkout dynamic QR token and records check-out time, triggering automated hour tracking.
  *     tags: [Volunteer Attendance]
  *     requestBody:
  *       required: true
@@ -325,8 +336,64 @@ router.post('/events/check-in', volunteerEventController.checkin);
  *         description: Invalid state or expired token
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.post('/events/check-out', volunteerEventController.checkout);
+
+
+// ==========================================
+// VOLUNTEER CERTIFICATE ROUTES
+// ==========================================
+
+/**
+ * @route   GET /api/volunteer/certificates
+ * @desc    Get a list of all verifiable certificates earned by the volunteer
+ * @swagger
+ * /api/volunteer/certificates:
+ *   get:
+ *     summary: List earned certificates
+ *     description: Retrieves all verifiable certificates automatically generated for this volunteer upon event completion.
+ *     tags: [Volunteer Certificates]
+ *     responses:
+ *       200:
+ *         description: Certificates retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/certificates', volunteerController.listMyCertificates);
+
+/**
+ * @route   GET /api/volunteer/certificates/:id/download
+ * @desc    Get the exact JSON data needed to draw the certificate on the frontend
+ * @swagger
+ * /api/volunteer/certificates/{id}/download:
+ *   get:
+ *     summary: Download certificate data
+ *     description: Fetches the exact JSON properties (name, event, hours, date) needed to render the certificate on the frontend HTML5 canvas.
+ *     tags: [Volunteer Certificates]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Certificate UUID
+ *     responses:
+ *       200:
+ *         description: Certificate data retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Certificate not found or access denied
+ *       500:
+ *         description: Server error
+ */
+router.get('/certificates/:id/download', volunteerController.downloadCertificateData);
+
 
 
 // ==========================================
@@ -339,8 +406,31 @@ router.post('/events/check-out', volunteerEventController.checkout);
  * @swagger
  * /api/volunteer/tasks:
  *   get:
- *     summary: Get tasks
+ *     summary: Get volunteer tasks
+ *     description: Retrieves a list of tasks assigned directly to this volunteer as well as unassigned public tasks.
  *     tags: [Volunteer Tasks]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum number of tasks to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of tasks to skip
+ *     responses:
+ *       200:
+ *         description: Tasks retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (Volunteer role required)
+ *       500:
+ *         description: Server error
  */
 router.get('/tasks', volunteerTaskController.listTasks);
 
@@ -351,7 +441,16 @@ router.get('/tasks', volunteerTaskController.listTasks);
  * /api/volunteer/tasks/{id}/progress:
  *   patch:
  *     summary: Update task progress
+ *     description: Allows the assigned volunteer to update progress (move to in_progress or pending_verification) and provide remarks.
  *     tags: [Volunteer Tasks]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Task UUID
  *     requestBody:
  *       required: true
  *       content:
@@ -360,12 +459,56 @@ router.get('/tasks', volunteerTaskController.listTasks);
  *             type: object
  *             required: [status]
  *             properties:
- *               status: { type: string, enum: [in_progress, pending_verification] }
- *               volunteer_remarks: { type: string }
+ *               status:
+ *                 type: string
+ *                 enum: [in_progress, pending_verification]
+ *               volunteer_remarks:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Task updated successfully
+ *       400:
+ *         description: Invalid status or task is already completed/cancelled
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Unauthorized (task not assigned to this volunteer)
+ *       404:
+ *         description: Task not found
+ *       500:
+ *         description: Server error
  */
 router.patch('/tasks/:id/progress', volunteerTaskController.updateProgress);
 
-// Add this where your other task routes are:
+/**
+ * @route   GET /api/volunteer/tasks/:id
+ * @desc    Get details and timeline of a specific task
+ * @swagger
+ * /api/volunteer/tasks/{id}:
+ *   get:
+ *     summary: Get task details
+ *     description: Retrieves details and timeline history for a specific task.
+ *     tags: [Volunteer Tasks]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Task UUID
+ *     responses:
+ *       200:
+ *         description: Task details retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied (private task assigned to another volunteer)
+ *       404:
+ *         description: Task not found
+ *       500:
+ *         description: Server error
+ */
 router.get('/tasks/:id', volunteerTaskController.getTaskDetails);
 
 module.exports = router;

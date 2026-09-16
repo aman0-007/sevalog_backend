@@ -4,9 +4,10 @@ const AuthModel = require('../models/authModel');
 
 // Helper function to generate tokens
 const generateToken = (user) => {
+    const jwtSecret = process.env.JWT_SECRET || 'sevalog_jwt_secret_dev_key_2026';
     return jwt.sign(
         { userId: user.user_id, role: user.role },
-        process.env.JWT_SECRET,
+        jwtSecret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
     );
 };
@@ -174,7 +175,8 @@ const authController = {
 
             // 2. Create a One-Time Use Dynamic Secret
             // By appending the user's current password hash, this token will instantly expire once the password is reset.
-            const secret = process.env.JWT_SECRET + user.password_hash;
+            const jwtSecret = process.env.JWT_SECRET || 'sevalog_jwt_secret_dev_key_2026';
+            const secret = jwtSecret + user.password_hash;
             
             const payload = {
                 userId: user.user_id,
@@ -223,7 +225,8 @@ const authController = {
             }
 
             // 2. Recreate the dynamic secret to verify the token
-            const secret = process.env.JWT_SECRET + user.password_hash;
+            const jwtSecret = process.env.JWT_SECRET || 'sevalog_jwt_secret_dev_key_2026';
+            const secret = jwtSecret + user.password_hash;
 
             try {
                 // 3. Verify the token
@@ -250,6 +253,49 @@ const authController = {
         } catch (error) {
             console.error('[Reset Password Error]:', error);
             return res.status(500).json({ success: false, message: "Server error during password reset." });
+        }
+    },
+
+    /**
+     * Get current authenticated user profile (/api/auth/me)
+     */
+    getCurrentUser: async (req, res) => {
+        try {
+            const userId = req.user.userId;
+            const user = await AuthModel.getUserById(userId);
+
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User account not found or deactivated."
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    userId: user.user_id,
+                    role: user.role,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
+                    fullName: `${user.first_name} ${user.last_name}`,
+                    email: user.email,
+                    phoneNumber: user.phone_number,
+                    collegeName: user.college_name,
+                    profession: user.profession,
+                    city: user.city,
+                    state: user.state,
+                    bloodGroup: user.blood_group,
+                    isActive: user.is_active,
+                    createdAt: user.created_at
+                }
+            });
+        } catch (error) {
+            console.error('[Get Current User Error]:', error);
+            return res.status(500).json({
+                success: false,
+                message: "Server error retrieving user session."
+            });
         }
     }
 };

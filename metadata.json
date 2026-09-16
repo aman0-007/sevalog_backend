@@ -1,0 +1,6 @@
+{
+  "name": "Sevalog Backend",
+  "description": "Volunteer management system backend API with PostgreSQL, JWT authentication, and Swagger documentation",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

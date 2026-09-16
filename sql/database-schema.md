@@ -13,9 +13,9 @@ To maintain data integrity, the system uses the following custom types:
 | **`event_lifecycle_status`** | `draft`, `published`, `completed`, `cancelled`, `archived` |
 | **`task_status`** | `assigned`, `in_progress`, `pending_verification`, `completed`, `cancelled` |
 | **`badge_metric`** | `hours`, `events_count` |
-| **`certificate_type`** | `event`, `master` |
+| **`certificate_type`** | `event`, `master`, `task` |
 | **`blood_group_type`** | `A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `O+`, `O-` |
-| **`event_category`** | `Cleanliness`, `Food Drive`, `Teaching`, `Medical Camp`, `Animal Welfare`, `Other` |
+| **`event_category`** | `Teaching & Mentorship`, `Tech & Development`, `Media & Photography`, `Content & Design`, `Wall Painting`, `Core & Planning`, `Other` |
 
 ---
 
@@ -79,10 +79,10 @@ Junction table tracking which volunteer earned which badge.
 *   **Fields:** `awarded_at`
 
 ### `certificates`
-Stores verified, downloadable credentials for volunteers.
+Stores verified, downloadable credentials for volunteers (event completion, task completion, and 60-hour master certificate).
 *   **Primary Key:** `certificate_id` (UUID)
-*   **Foreign Keys:** `user_id`, `event_id`
-*   **Key Fields:** `type`, `hours_credited`, `issued_at`
+*   **Foreign Keys:** `user_id`, `event_id` (Optional), `task_id` (Optional -> `tasks(task_id)`)
+*   **Key Fields:** `type` (certificate_type: `event`, `master`, `task`), `hours_credited`, `issued_at`
 
 ---
 

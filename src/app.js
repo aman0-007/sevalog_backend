@@ -44,6 +44,60 @@ const swaggerOptions = {
                 description: 'Development Server',
             },
         ],
+        tags: [
+            // 1. Auth
+            {
+                name: 'Auth',
+                description: 'User registration, login, token management, password resets, and session profile (/api/auth/me)'
+            },
+            // 2. Public
+            {
+                name: 'Public',
+                description: 'Public landing page endpoints, published event discovery, and open certificate verification & download'
+            },
+            // 3. Volunteer (profile, dashboard, events, attendance, certificates, tasks)
+            {
+                name: 'Volunteer Profile',
+                description: 'Volunteer profile retrieval, avatar upload, and personal detail updates'
+            },
+            {
+                name: 'Volunteer Dashboard',
+                description: 'Volunteer metrics matrix, impact hours, community activities feed, and leaderboards'
+            },
+            {
+                name: 'Volunteer Events',
+                description: 'Event catalog exploration, registration, and withdrawal'
+            },
+            {
+                name: 'Volunteer Attendance',
+                description: 'Dynamic QR token attendance check-in and check-out scanning'
+            },
+            {
+                name: 'Volunteer Certificates',
+                description: 'Earned certificates listing and frontend canvas/print download payload'
+            },
+            {
+                name: 'Volunteer Tasks',
+                description: 'Assigned and public task queue, status progression, and timeline tracking'
+            },
+            // 4. Admin (dashboard, events, attendance, volunteers, tasks)
+            {
+                name: 'Admin Dashboard',
+                description: 'Executive KPI metrics, organizational statistics, leaderboards, and system timelines'
+            },
+            {
+                name: 'Admin Events',
+                description: 'Event lifecycle management (creation, publishing, completion, dynamic QR issuance, manual attendance override)'
+            },
+            {
+                name: 'Admin Volunteers',
+                description: 'Volunteer registry management, search, filtering, and deactivation'
+            },
+            {
+                name: 'Admin Tasks',
+                description: 'Task assignment, review, approval, status transitions, and timeline logging'
+            }
+        ],
         components: {
             securitySchemes: {
                 bearerAuth: {
@@ -59,21 +113,35 @@ const swaggerOptions = {
             },
         ],
     },
-    // Dynamically resolve the routes folder based on app.js location
-    apis: [path.join(__dirname, './routes/*.js')],
+    // Order route files explicitly: Auth -> Public -> Volunteer -> Admin
+    apis: [
+        path.join(__dirname, './routes/authRoutes.js'),
+        path.join(__dirname, './routes/publicRoutes.js'),
+        path.join(__dirname, './routes/volunteerRoutes.js'),
+        path.join(__dirname, './routes/adminRoutes.js'),
+    ],
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
 const swaggerUiOptions = {
     explorer: true,
-    customCss: theme.getBuffer('material') // Choose your theme here
+    customCss: theme.getBuffer('material'),
+    swaggerOptions: {
+        operationsSorter: 'alpha',
+        tagsSorter: null // Preserves our custom defined tags array ordering
+    }
 };
 
 // Serve the Swagger UI at /api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs, swaggerUiOptions));
 // ==========================================
 
+
+// Root redirect to Swagger API Documentation
+app.get('/', (req, res) => {
+    res.redirect('/api-docs');
+});
 
 // Base Health Check Route
 app.get('/health', (req, res) => {

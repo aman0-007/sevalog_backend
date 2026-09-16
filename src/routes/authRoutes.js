@@ -20,27 +20,41 @@ const { verifyToken } = require('../middlewares/authMiddleware');
  *           schema:
  *             type: object
  *             required:
- *               - name
+ *               - firstName
+ *               - lastName
  *               - email
  *               - password
  *             properties:
- *               name:
+ *               firstName:
  *                 type: string
- *                 example: "Rahul Sharma"
+ *                 example: "Rahul"
+ *               lastName:
+ *                 type: string
+ *                 example: "Sharma"
  *               email:
  *                 type: string
  *                 example: "rahul@example.com"
  *               password:
  *                 type: string
  *                 example: "SecurePass123!"
- *               phone:
+ *               phoneNumber:
  *                 type: string
  *                 example: "+919876543210"
+ *               collegeName:
+ *                 type: string
+ *                 example: "VESIT Chembur"
+ *                 description: "Either collegeName or profession must be provided"
+ *               profession:
+ *                 type: string
+ *                 example: "Software Engineer"
+ *                 description: "Either collegeName or profession must be provided"
  *     responses:
  *       201:
  *         description: Volunteer registered successfully
  *       400:
- *         description: Validation error or email already exists
+ *         description: Missing required fields or validation failure
+ *       409:
+ *         description: Account with this email or phone number already exists
  *       500:
  *         description: Server error
  */
@@ -91,6 +105,8 @@ router.post('/login', authController.login);
  *     summary: Change user password
  *     description: Allows an authenticated user to update their password. Requires a valid JWT token.
  *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -194,5 +210,106 @@ router.post('/forgot-password', authController.forgotPassword);
  *         description: Server error
  */
 router.post('/reset-password/:userId/:token', authController.resetPassword);
+
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get the profile and role details of the currently authenticated user (Admin or Volunteer)
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current authenticated user session
+ *     description: Validates the JWT Bearer token and returns the current user's profile, role (admin or volunteer), and status. Accessible by both admin and volunteer roles.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user session retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       format: uuid
+ *                       example: "c79fb4cf-9c60-4966-9b54-dcf03d47ad92"
+ *                     role:
+ *                       type: string
+ *                       enum: [admin, volunteer]
+ *                       example: "volunteer"
+ *                     firstName:
+ *                       type: string
+ *                       example: "Rahul"
+ *                     lastName:
+ *                       type: string
+ *                       example: "Sharma"
+ *                     fullName:
+ *                       type: string
+ *                       example: "Rahul Sharma"
+ *                     email:
+ *                       type: string
+ *                       example: "rahul@example.com"
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+919876543210"
+ *                     collegeName:
+ *                       type: string
+ *                       example: "VESIT Chembur"
+ *                     profession:
+ *                       type: string
+ *                       example: "Software Engineer"
+ *                     city:
+ *                       type: string
+ *                       example: "Mumbai"
+ *                     state:
+ *                       type: string
+ *                       example: "Maharashtra"
+ *                     bloodGroup:
+ *                       type: string
+ *                       example: "O+"
+ *                     isActive:
+ *                       type: boolean
+ *                       example: true
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2026-08-01T10:00:00.000Z"
+ *       401:
+ *         description: Missing, invalid, or expired JWT token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Access denied. No valid token provided."
+ *       404:
+ *         description: User account not found or deactivated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User account not found or deactivated."
+ *       500:
+ *         description: Server error retrieving user session
+ */
+router.get('/me', verifyToken, authController.getCurrentUser);
 
 module.exports = router;

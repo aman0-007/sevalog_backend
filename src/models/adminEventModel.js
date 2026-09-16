@@ -606,7 +606,7 @@ const AdminEventModel = {
 
             const token = jwt.sign(
                 { eventId, action: type, nonce: crypto.randomUUID() },
-                process.env.JWT_SECRET,
+                process.env.JWT_SECRET || 'sevalog_jwt_secret_dev_key_2026',
                 { expiresIn: "30s" }
             );
 
@@ -628,8 +628,10 @@ const AdminEventModel = {
 
     /**
      * Manually update a volunteer's attendance record (Trigger-safe)
+     * Supports targeting via registrationId (attendance_id) or volunteerId.
+     * Enforces that updates only apply to registered volunteers for the specific event.
      */
-    updateManualAttendance: async (eventId, volunteerId, data, adminId) => {
+    updateManualAttendance: async (eventId, identifier, data, adminId, isRegistrationId = false) => {
         const client = await db.connect();
         try {
             await client.query("BEGIN");
@@ -640,7 +642,7 @@ const AdminEventModel = {
             let paramIndex = 1;
 
             // Only add fields to the SET clause if they were explicitly provided
-            if (data.status !== undefined) {
+            if (data.status !== undefined && data.status !== null) {
                 setClauses.push(`status = $${paramIndex++}`);
                 values.push(data.status);
             }
@@ -652,7 +654,7 @@ const AdminEventModel = {
                 setClauses.push(`check_out_time = $${paramIndex++}`);
                 values.push(data.check_out_time);
             }
-            if (data.hours_logged !== undefined) {
+            if (data.hours_logged !== undefined && data.hours_logged !== null) {
                 setClauses.push(`hours_logged = $${paramIndex++}`);
                 values.push(data.hours_logged);
             }
@@ -667,14 +669,18 @@ const AdminEventModel = {
 
             if (setClauses.length === 1) throw new Error("NO_DATA_PROVIDED"); // Only marked_by was added
 
-            // Add WHERE parameters
+            // Add WHERE parameters: enforce event_id match + identifier match
             values.push(eventId);
-            values.push(volunteerId);
+            const eventParam = paramIndex++;
+            values.push(identifier);
+            const idParam = paramIndex++;
+
+            const idColumn = isRegistrationId ? "attendance_id" : "volunteer_id";
             
             const queryText = `
                 UPDATE attendance 
                 SET ${setClauses.join(", ")} 
-                WHERE event_id = $${paramIndex} AND volunteer_id = $${paramIndex + 1}
+                WHERE event_id = $${eventParam} AND ${idColumn} = $${idParam}
                 RETURNING *;
             `;
 
@@ -682,14 +688,16 @@ const AdminEventModel = {
 
             if (rows.length === 0) throw new Error("ATTENDANCE_RECORD_NOT_FOUND");
 
-            // 2. Log the manual intervention
+            const updatedAttendance = rows[0];
+
+            // 2. Log the manual intervention in the timeline
             await client.query(
                 `INSERT INTO event_timeline (event_id, user_id, action) VALUES ($1, $2, $3)`,
-                [eventId, adminId, `Admin manually updated attendance for volunteer ${volunteerId}`]
+                [eventId, adminId, `Admin manually updated attendance for volunteer ${updatedAttendance.volunteer_id}`]
             );
 
             await client.query("COMMIT");
-            return rows[0];
+            return updatedAttendance;
         } catch (error) {
             await client.query("ROLLBACK");
             throw error;

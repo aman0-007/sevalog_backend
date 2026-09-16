@@ -38,23 +38,23 @@ const VolunteerModel = {
             SET 
                 first_name = COALESCE($1, first_name), 
                 last_name = COALESCE($2, last_name), 
-                date_of_birth = $3, 
-                gender = $4, 
-                blood_group = $5, 
-                residential_address = $6, 
+                date_of_birth = COALESCE($3, date_of_birth), 
+                gender = COALESCE($4, gender), 
+                blood_group = COALESCE($5, blood_group), 
+                residential_address = COALESCE($6, residential_address), 
                 city = COALESCE($7, city), 
                 state = COALESCE($8, state), 
-                pincode = $9, 
-                emergency_contact_name = $10, 
-                emergency_contact_relation = $11, 
-                emergency_contact_number = $12, 
-                medical_conditions = $13, 
-                education_level = $14, 
-                college_name = $15, 
-                profession = $16, 
-                skills = $17::text[], 
-                languages_spoken = $18::text[], 
-                interested_activities = $19::text[]
+                pincode = COALESCE($9, pincode), 
+                emergency_contact_name = COALESCE($10, emergency_contact_name), 
+                emergency_contact_relation = COALESCE($11, emergency_contact_relation), 
+                emergency_contact_number = COALESCE($12, emergency_contact_number), 
+                medical_conditions = COALESCE($13, medical_conditions), 
+                education_level = COALESCE($14, education_level), 
+                college_name = COALESCE($15, college_name), 
+                profession = COALESCE($16, profession), 
+                skills = COALESCE($17::text[], skills), 
+                languages_spoken = COALESCE($18::text[], languages_spoken), 
+                interested_activities = COALESCE($19::text[], interested_activities)
             WHERE user_id = $20 AND role = 'volunteer' AND is_active = TRUE
             RETURNING user_id, first_name, last_name, email;
         `;
@@ -67,8 +67,8 @@ const VolunteerModel = {
             gender || null, 
             bloodGroup || null,
             residentialAddress || null, 
-            city || 'Mumbai', 
-            state || 'Maharashtra', 
+            city || null, 
+            state || null, 
             pincode || null, 
             emergencyContactName || null, 
             emergencyContactRelation || null, 
@@ -77,9 +77,9 @@ const VolunteerModel = {
             educationLevel || null, 
             collegeName || null, 
             profession || null, 
-            skills || [], 
-            languagesSpoken || [], 
-            interestedActivities || [], 
+            skills !== undefined ? skills : null, 
+            languagesSpoken !== undefined ? languagesSpoken : null, 
+            interestedActivities !== undefined ? interestedActivities : null, 
             userId
         ];
 
