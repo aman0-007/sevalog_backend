@@ -108,15 +108,14 @@ const emailService = {
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="vertical-align: middle; padding-right: 12px;">
-                          <div style="width: 36px; height: 36px; background-color: #eff6ff; border-radius: 6px; text-align: center; line-height: 36px;">
-                            <!-- Minimal Community / Volunteer SVG Icon -->
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-top: 8px;">
-                              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                              <circle cx="9" cy="7" r="4"></circle>
-                              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                            </svg>
-                          </div>
+                          <!-- Bulletproof Brand Badge (renders consistently in all email clients including Gmail) -->
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                              <td align="center" style="width: 36px; height: 36px; background-color: #2563eb; border-radius: 8px; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 18px; font-weight: 700; line-height: 36px; text-align: center;">
+                                S
+                              </td>
+                            </tr>
+                          </table>
                         </td>
                         <td style="vertical-align: middle;">
                           <span style="font-size: 17px; font-weight: 700; letter-spacing: 0.5px; color: #0f172a;">SEVALOG</span>
@@ -155,18 +154,12 @@ const emailService = {
                 </tr>
               </table>
 
-              <!-- Notice Box with Minimal Clock SVG -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #fefce8; border: 1px solid #fef08a; border-radius: 6px; padding: 12px 14px; margin: 24px 0 20px 0;">
+              <!-- Notice Box (Bulletproof email callout with left accent border) -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; border-radius: 4px; margin: 24px 0 20px 0;">
                 <tr>
-                  <td style="vertical-align: top; width: 22px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#854d0e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                  </td>
-                  <td style="vertical-align: top; padding-left: 8px;">
+                  <td style="padding: 12px 16px;">
                     <p style="margin: 0; font-size: 13px; color: #854d0e; line-height: 1.5;">
-                      <strong>Time limit:</strong> This link will expire in <strong>15 minutes</strong> and can only be used once.
+                      <strong style="color: #713f12;">Time limit:</strong> This link will expire in <strong>15 minutes</strong> and can only be used once.
                     </p>
                   </td>
                 </tr>
@@ -180,15 +173,10 @@ const emailService = {
                 <a href="${resetUrl}" target="_blank" style="color: #2563eb; text-decoration: none;">${resetUrl}</a>
               </div>
 
-              <!-- Minimal Shield SVG for Security Notice -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+              <!-- Security Notice -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top: 1px solid #f1f5f9; padding-top: 14px;">
                 <tr>
-                  <td style="vertical-align: top; width: 18px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                  </td>
-                  <td style="vertical-align: top; padding-left: 6px;">
+                  <td>
                     <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0;">
                       If you did not request a password reset, you can safely disregard this email. Your current password remains secure.
                     </p>
