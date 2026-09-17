@@ -264,6 +264,100 @@ const publicController = {
             console.error('[Public Certificate Download Error]:', error);
             return res.status(500).json({ success: false, message: 'Server error during certificate retrieval.' });
         }
+    },
+
+    /**
+     * Public Impact & Organization Statistics
+     * Returns unified metric counters across hours, volunteers, events, tasks,
+     * certificates, badges, category impact, and volunteer rank distribution.
+     */
+    getPublicImpactStats: async (req, res) => {
+        try {
+            const stats = await PublicModel.getPublicImpactStats();
+            
+            const rawSummary = stats.summary || {};
+            const eventHours = parseFloat(rawSummary.event_hours || 0);
+            const taskHours = parseFloat(rawSummary.task_hours || 0);
+            const totalHours = Math.round((eventHours + taskHours) * 100) / 100;
+            const totalVolunteers = parseInt(rawSummary.total_volunteers || 0, 10);
+            const activeVolunteers = parseInt(rawSummary.active_volunteers || 0, 10);
+            const totalEventsCompleted = parseInt(rawSummary.total_events_completed || 0, 10);
+            const totalEventsCreated = parseInt(rawSummary.total_events_created || 0, 10);
+            const totalEventsActive = parseInt(rawSummary.total_events_active || 0, 10);
+            const totalTasksCompleted = parseInt(rawSummary.total_tasks_completed || 0, 10);
+            const totalTasksCreated = parseInt(rawSummary.total_tasks_created || 0, 10);
+            const totalAttendancesMarked = parseInt(rawSummary.total_attendances_marked || 0, 10);
+            const totalRegistrations = parseInt(rawSummary.total_registrations_received || 0, 10);
+            const totalCertificates = parseInt(rawSummary.total_certificates_issued || 0, 10);
+            const masterCertificates = parseInt(rawSummary.master_certificates_issued || 0, 10);
+            const eventCertificates = parseInt(rawSummary.event_certificates_issued || 0, 10);
+            const taskCertificates = parseInt(rawSummary.task_certificates_issued || 0, 10);
+            const totalBadges = parseInt(rawSummary.total_badges_unlocked || 0, 10);
+
+            // Calculate engagement rate
+            const volunteerEngagementRate = totalVolunteers > 0
+                ? Math.round((activeVolunteers / totalVolunteers) * 100)
+                : 0;
+
+            const formattedResponse = {
+                success: true,
+                message: "Public impact statistics retrieved successfully.",
+                data: {
+                    overview: {
+                        total_seva_hours_logged: totalHours,
+                        event_hours_logged: eventHours,
+                        task_hours_logged: taskHours,
+                        total_registered_volunteers: totalVolunteers,
+                        active_volunteers_count: activeVolunteers,
+                        volunteer_engagement_rate_percent: volunteerEngagementRate,
+                        total_activities_completed: totalEventsCompleted + totalTasksCompleted,
+                        total_certificates_issued: totalCertificates
+                    },
+                    events: {
+                        total_events_conducted: totalEventsCompleted,
+                        total_events_scheduled: totalEventsCreated,
+                        active_published_events: totalEventsActive,
+                        total_volunteer_attendances: totalAttendancesMarked,
+                        total_event_registrations: totalRegistrations
+                    },
+                    tasks: {
+                        total_tasks_completed: totalTasksCompleted,
+                        total_tasks_assigned: totalTasksCreated,
+                        task_completion_rate_percent: totalTasksCreated > 0 
+                            ? Math.round((totalTasksCompleted / totalTasksCreated) * 100)
+                            : 0
+                    },
+                    certificates_and_recognition: {
+                        total_certificates_awarded: totalCertificates,
+                        master_certificates_60hr_milestone: masterCertificates,
+                        event_certificates: eventCertificates,
+                        task_certificates: taskCertificates,
+                        total_badges_earned_by_volunteers: totalBadges
+                    },
+                    impact_by_category: stats.categories.map(c => ({
+                        category: c.category,
+                        events_count: parseInt(c.events_count || 0, 10),
+                        hours_logged: Math.round(parseFloat(c.hours_logged || 0) * 100) / 100,
+                        volunteer_participations: parseInt(c.volunteer_participations || 0, 10)
+                    })),
+                    volunteer_rank_distribution: stats.rankDistribution.map(r => ({
+                        rank_name: r.rank_name,
+                        min_hours: parseFloat(r.min_hours),
+                        color_hex: r.color_hex,
+                        icon_name: r.icon_name,
+                        volunteer_count: parseInt(r.volunteer_count || 0, 10)
+                    }))
+                }
+            };
+
+            return res.status(200).json(formattedResponse);
+        } catch (error) {
+            console.error('[Public Impact Stats Error]:', error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to load public impact statistics."
+            });
+        }
     }
 };
 

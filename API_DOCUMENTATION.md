@@ -1,6 +1,6 @@
 # Chembur Samithi Seva – Complete Backend API Reference
 
-> A comprehensive, production-grade reference manual covering all **49 backend API endpoints** grouped by user role (**Public**, **Auth**, **Volunteer**, and **Admin**).
+> A comprehensive, production-grade reference manual covering all **50 backend API endpoints** grouped by user role (**Public**, **Auth**, **Volunteer**, and **Admin**).
 > 
 > Designed to provide full architectural and schema parity for frontend developers and AI coding agents building web/mobile interfaces.
 
@@ -8,7 +8,7 @@
 
 ## Table of Contents
 1. [Global Architectural Conventions](#1-global-architectural-conventions)
-2. [Public Endpoints (Guest / Unauthenticated)](#2-public-endpoints-guest--unauthenticated) (5 endpoints)
+2. [Public Endpoints (Guest / Unauthenticated)](#2-public-endpoints-guest--unauthenticated) (6 endpoints)
 3. [Authentication & Session Endpoints](#3-authentication--session-endpoints) (6 endpoints)
 4. [Volunteer Portal Endpoints (Role: volunteer)](#4-volunteer-portal-endpoints-role-volunteer) (15 endpoints)
 5. [Admin Management Endpoints (Role: admin)](#5-admin-management-endpoints-role-admin) (23 endpoints)
@@ -43,7 +43,7 @@ Tokens are obtained via `POST /api/auth/login` or `POST /api/auth/register`.
 }
 ```
 
-#### Standard Error Response (`400`, `401`, `403`, `404`, `409`, `500`)
+#### Standard Error Response (`400`, `401`, `403`, `404`, `409`, `500`, `503`)
 ```json
 {
   "success": false,
@@ -150,6 +150,26 @@ Tokens are obtained via `POST /api/auth/login` or `POST /api/auth/register`.
   - **`400`**: Invalid certificate UUID format
   - **`404`**: Certificate not found or does not exist
   - **`500`**: Server error during certificate retrieval
+
+---
+
+### `GET /api/public/impact-stats`
+
+**Summary**: Retrieve comprehensive public impact metrics
+
+**Description**: Provides public-facing metrics and statistics covering total verified seva hours, volunteer headcount, activity completions, certificate awards, badge milestones, category impact breakdown, and rank tier distributions.
+
+- **Required Headers**:
+  - `Authorization`: None (Public)
+  - `Content-Type`: `application/json`
+- **URL / Query Parameters**: None
+- **Request Body**: None
+- **Expected HTTP Status Codes**:
+  - **`200`**: Successfully retrieved public impact metrics
+  - **`400`**: Bad Request / Invalid query filter parameters
+  - **`404`**: Not Found / Metrics dataset unavailable
+  - **`500`**: Internal Server Error / Database computation failure
+  - **`503`**: Service Unavailable / Database maintenance or connection timeout
 
 ---
 
@@ -1194,3 +1214,4 @@ Tokens are obtained via `POST /api/auth/login` or `POST /api/auth/register`.
 | **`404 Not Found`** | Resource Missing | Event, volunteer, task, or certificate ID does not exist in the database. | Render 404 Empty State / "Resource Not Found" screen. |
 | **`409 Conflict`** | Conflict / Duplicate | Email address or phone number is already registered. | Prompt user to log in or use alternate contact info. |
 | **`500 Internal Error`**| Server Exception | Uncaught server or database error. | Show generic error alert: *"An unexpected error occurred. Please try again later."* |
+| **`503 Unavailable`**   | Maintenance / Timeout | Database service temporarily unavailable or connection timeout. | Prompt user to retry request shortly. |

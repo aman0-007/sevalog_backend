@@ -193,6 +193,61 @@ async function executeMockQuery(text, params = []) {
         return { rows: [], rowCount: 0 };
     }
 
+    // 2.1 Public impact stats queries (Check early before generic 'from tasks' or 'from users' matches)
+    if (lower.includes('event_hours_calc') || lower.includes('task_hours_calc') || lower.includes('from events_metrics') || lower.includes('attendance_metrics')) {
+        return {
+            rows: [{
+                event_hours: 48.50,
+                task_hours: 22.00,
+                total_volunteers: mockUsers.filter(u => u.role === 'volunteer').length,
+                active_volunteers: 1,
+                total_events_created: mockEvents.length,
+                total_events_completed: 1,
+                total_events_active: mockEvents.filter(e => e.status === 'published').length,
+                total_tasks_created: mockTasks.length,
+                total_tasks_completed: 1,
+                total_attendances_marked: 1,
+                total_registrations_received: 2,
+                total_certificates_issued: mockCertificates.length,
+                master_certificates_issued: 0,
+                event_certificates_issued: 1,
+                task_certificates_issued: 0,
+                total_badges_unlocked: 3
+            }],
+            rowCount: 1
+        };
+    }
+
+    if (lower.includes('group by e.category')) {
+        return {
+            rows: [
+                { category: 'Wall Painting', events_count: 1, hours_logged: 18.00, volunteer_participations: 4 },
+                { category: 'Teaching & Mentorship', events_count: 1, hours_logged: 16.50, volunteer_participations: 5 },
+                { category: 'Tech & Development', events_count: 1, hours_logged: 12.00, volunteer_participations: 2 },
+                { category: 'Media & Photography', events_count: 0, hours_logged: 0, volunteer_participations: 0 },
+                { category: 'Content & Design', events_count: 0, hours_logged: 0, volunteer_participations: 0 },
+                { category: 'Core & Planning', events_count: 0, hours_logged: 0, volunteer_participations: 0 },
+                { category: 'Other', events_count: 0, hours_logged: 0, volunteer_participations: 0 }
+            ],
+            rowCount: 7
+        };
+    }
+
+    if (lower.includes('group by r.rank_id') || lower.includes('rankdistribution') || (lower.includes('from ranks r') && lower.includes('min_hours'))) {
+        return {
+            rows: [
+                { rank_name: 'Neev Initiate', min_hours: 0, color_hex: '#94A3B8', icon_name: 'user', volunteer_count: 1 },
+                { rank_name: 'Spark of Change', min_hours: 15, color_hex: '#FBBF24', icon_name: 'zap', volunteer_count: 0 },
+                { rank_name: 'Guiding Light', min_hours: 30, color_hex: '#34D399', icon_name: 'compass', volunteer_count: 0 },
+                { rank_name: 'Values Catalyst', min_hours: 45, color_hex: '#F43F5E', icon_name: 'flame', volunteer_count: 0 },
+                { rank_name: 'Neev Ambassador', min_hours: 60, color_hex: '#8B5CF6', icon_name: 'award', volunteer_count: 0 },
+                { rank_name: 'Neev Luminary', min_hours: 80, color_hex: '#F59E0B', icon_name: 'crown', volunteer_count: 0 },
+                { rank_name: 'Neev Visionary', min_hours: 100, color_hex: '#06B6D4', icon_name: 'diamond', volunteer_count: 0 }
+            ],
+            rowCount: 7
+        };
+    }
+
     // 3. User lookup by email
     if (lower.includes('from users') && (lower.includes('email = $1') || lower.includes('lower(email) = lower($1)') || (lower.includes('email') && !lower.includes('phone_number') && !lower.includes('user_id = $1')))) {
         const email = String(params[0] || '').trim().toLowerCase();

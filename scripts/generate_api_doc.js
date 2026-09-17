@@ -1,5 +1,47 @@
 const fs = require('fs');
-const endpoints = JSON.parse(fs.readFileSync('endpoints_raw.json', 'utf8'));
+const path = require('path');
+const swaggerJsDoc = require('swagger-jsdoc');
+
+// Dynamically extract swagger specification directly from route definitions
+const swaggerOptions = {
+    swaggerDefinition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'Chembur Samithi Seva API',
+            version: '1.0.0',
+            description: 'API documentation for the Volunteer Management System',
+        },
+    },
+    apis: [
+        path.join(__dirname, '../src/routes/authRoutes.js'),
+        path.join(__dirname, '../src/routes/publicRoutes.js'),
+        path.join(__dirname, '../src/routes/volunteerRoutes.js'),
+        path.join(__dirname, '../src/routes/adminRoutes.js'),
+    ],
+};
+
+const swaggerSpec = swaggerJsDoc(swaggerOptions);
+const endpoints = [];
+
+for (const [routePath, methods] of Object.entries(swaggerSpec.paths || {})) {
+    for (const [method, def] of Object.entries(methods)) {
+        const responses = [];
+        if (def.responses) {
+            for (const [code, r] of Object.entries(def.responses)) {
+                responses.push({ code, desc: r.description || '' });
+            }
+        }
+        endpoints.push({
+            method: method.toUpperCase(),
+            path: routePath,
+            summary: def.summary || '',
+            description: def.description || '',
+            parameters: def.parameters || [],
+            requestBody: def.requestBody || null,
+            responses: responses
+        });
+    }
+}
 
 function formatSchema(schema) {
     if (!schema) return 'None';
@@ -18,9 +60,14 @@ function formatSchema(schema) {
     return '`' + JSON.stringify(schema) + '`';
 }
 
+const publicCount = endpoints.filter(e => e.path.startsWith('/api/public')).length;
+const authCount = endpoints.filter(e => e.path.startsWith('/api/auth')).length;
+const volunteerCount = endpoints.filter(e => e.path.startsWith('/api/volunteer')).length;
+const adminCount = endpoints.filter(e => e.path.startsWith('/api/admin')).length;
+
 let md = `# Chembur Samithi Seva – Complete Backend API Reference
 
-> A comprehensive, production-grade reference manual covering all **49 backend API endpoints** grouped by user role (**Public**, **Auth**, **Volunteer**, and **Admin**).
+> A comprehensive, production-grade reference manual covering all **${endpoints.length} backend API endpoints** grouped by user role (**Public**, **Auth**, **Volunteer**, and **Admin**).
 > 
 > Designed to provide full architectural and schema parity for frontend developers and AI coding agents building web/mobile interfaces.
 
@@ -28,10 +75,10 @@ let md = `# Chembur Samithi Seva – Complete Backend API Reference
 
 ## Table of Contents
 1. [Global Architectural Conventions](#1-global-architectural-conventions)
-2. [Public Endpoints (Guest / Unauthenticated)](#2-public-endpoints-guest--unauthenticated) (5 endpoints)
-3. [Authentication & Session Endpoints](#3-authentication--session-endpoints) (6 endpoints)
-4. [Volunteer Portal Endpoints (Role: volunteer)](#4-volunteer-portal-endpoints-role-volunteer) (15 endpoints)
-5. [Admin Management Endpoints (Role: admin)](#5-admin-management-endpoints-role-admin) (23 endpoints)
+2. [Public Endpoints (Guest / Unauthenticated)](#2-public-endpoints-guest--unauthenticated) (${publicCount} endpoints)
+3. [Authentication & Session Endpoints](#3-authentication--session-endpoints) (${authCount} endpoints)
+4. [Volunteer Portal Endpoints (Role: volunteer)](#4-volunteer-portal-endpoints-role-volunteer) (${volunteerCount} endpoints)
+5. [Admin Management Endpoints (Role: admin)](#5-admin-management-endpoints-role-admin) (${adminCount} endpoints)
 6. [Response Codes & Standard Error Matrix](#6-response-codes--standard-error-matrix)
 
 ---
@@ -63,7 +110,7 @@ Tokens are obtained via \`POST /api/auth/login\` or \`POST /api/auth/register\`.
 }
 \`\`\`
 
-#### Standard Error Response (\`400\`, \`401\`, \`403\`, \`404\`, \`409\`, \`500\`)
+#### Standard Error Response (\`400\`, \`401\`, \`403\`, \`404\`, \`409\`, \`500\`, \`503\`)
 \`\`\`json
 {
   "success": false,
@@ -163,7 +210,10 @@ md += `## 6. Response Codes & Standard Error Matrix
 | **\`404 Not Found\`** | Resource Missing | Event, volunteer, task, or certificate ID does not exist in the database. | Render 404 Empty State / "Resource Not Found" screen. |
 | **\`409 Conflict\`** | Conflict / Duplicate | Email address or phone number is already registered. | Prompt user to log in or use alternate contact info. |
 | **\`500 Internal Error\`**| Server Exception | Uncaught server or database error. | Show generic error alert: *"An unexpected error occurred. Please try again later."* |
+| **\`503 Unavailable\`**   | Maintenance / Timeout | Database service temporarily unavailable or connection timeout. | Prompt user to retry request shortly. |
 `;
 
-fs.writeFileSync('API_DOCUMENTATION.md', md, 'utf8');
+const outputPath = path.join(__dirname, '../API_DOCUMENTATION.md');
+fs.writeFileSync(outputPath, md, 'utf8');
 console.log('API_DOCUMENTATION.md created successfully. Total characters:', md.length);
+

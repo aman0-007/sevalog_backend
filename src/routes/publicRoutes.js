@@ -575,4 +575,198 @@ router.get('/verify-certificate/:id', publicController.verifyCertificate);
  */
 router.get('/verify-certificate/:id/download', publicController.downloadPublicCertificate);
 
+/**
+ * @route   GET /api/public/impact-stats
+ * @desc    Get high-level organizational impact metrics for public showcase, partners, and colleges
+ * @swagger
+ * /api/public/impact-stats:
+ *   get:
+ *     summary: Retrieve comprehensive public impact metrics
+ *     description: Provides public-facing metrics and statistics covering total verified seva hours, volunteer headcount, activity completions, certificate awards, badge milestones, category impact breakdown, and rank tier distributions.
+ *     tags: [Public]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved public impact metrics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Public impact statistics retrieved successfully."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     overview:
+ *                       type: object
+ *                       properties:
+ *                         total_seva_hours_logged:
+ *                           type: number
+ *                           example: 70.5
+ *                         event_hours_logged:
+ *                           type: number
+ *                           example: 48.5
+ *                         task_hours_logged:
+ *                           type: number
+ *                           example: 22.0
+ *                         total_registered_volunteers:
+ *                           type: integer
+ *                           example: 120
+ *                         active_volunteers_count:
+ *                           type: integer
+ *                           example: 85
+ *                         volunteer_engagement_rate_percent:
+ *                           type: integer
+ *                           example: 71
+ *                         total_activities_completed:
+ *                           type: integer
+ *                           example: 38
+ *                         total_certificates_issued:
+ *                           type: integer
+ *                           example: 45
+ *                     events:
+ *                       type: object
+ *                       properties:
+ *                         total_events_conducted:
+ *                           type: integer
+ *                           example: 18
+ *                         total_events_scheduled:
+ *                           type: integer
+ *                           example: 24
+ *                         active_published_events:
+ *                           type: integer
+ *                           example: 2
+ *                         total_volunteer_attendances:
+ *                           type: integer
+ *                           example: 160
+ *                         total_event_registrations:
+ *                           type: integer
+ *                           example: 190
+ *                     tasks:
+ *                       type: object
+ *                       properties:
+ *                         total_tasks_completed:
+ *                           type: integer
+ *                           example: 20
+ *                         total_tasks_assigned:
+ *                           type: integer
+ *                           example: 25
+ *                         task_completion_rate_percent:
+ *                           type: integer
+ *                           example: 80
+ *                     certificates_and_recognition:
+ *                       type: object
+ *                       properties:
+ *                         total_certificates_awarded:
+ *                           type: integer
+ *                           example: 45
+ *                         master_certificates_60hr_milestone:
+ *                           type: integer
+ *                           example: 8
+ *                         event_certificates:
+ *                           type: integer
+ *                           example: 30
+ *                         task_certificates:
+ *                           type: integer
+ *                           example: 7
+ *                         total_badges_earned_by_volunteers:
+ *                           type: integer
+ *                           example: 64
+ *                     impact_by_category:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           category:
+ *                             type: string
+ *                             example: "Wall Painting"
+ *                           events_count:
+ *                             type: integer
+ *                             example: 5
+ *                           hours_logged:
+ *                             type: number
+ *                             example: 32.5
+ *                           volunteer_participations:
+ *                             type: integer
+ *                             example: 42
+ *                     volunteer_rank_distribution:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           rank_name:
+ *                             type: string
+ *                             example: "Spark of Change"
+ *                           min_hours:
+ *                             type: number
+ *                             example: 15
+ *                           color_hex:
+ *                             type: string
+ *                             example: "#FBBF24"
+ *                           icon_name:
+ *                             type: string
+ *                             example: "zap"
+ *                           volunteer_count:
+ *                             type: integer
+ *                             example: 28
+ *       400:
+ *         description: Bad Request / Invalid query filter parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid query parameters provided for impact statistics."
+ *       404:
+ *         description: Not Found / Metrics dataset unavailable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Public impact statistics are currently unavailable."
+ *       500:
+ *         description: Internal Server Error / Database computation failure
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Failed to load public impact statistics."
+ *       503:
+ *         description: Service Unavailable / Database maintenance or connection timeout
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Impact statistics service is temporarily unavailable. Please retry shortly."
+ */
+router.get('/impact-stats', publicController.getPublicImpactStats);
+
 module.exports = router;
