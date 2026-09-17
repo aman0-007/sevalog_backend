@@ -134,17 +134,17 @@ const swaggerUiOptions = {
 };
 
 // Serve the Swagger UI at /api-docs
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs, swaggerUiOptions));
+app.use(['/api/api-docs', '/api-docs'], swaggerUi.serve, swaggerUi.setup(swaggerDocs, swaggerUiOptions));
 // ==========================================
 
 
 // Root redirect to Swagger API Documentation
-app.get('/', (req, res) => {
-    res.redirect('/api-docs');
+app.get(['/', '/api'], (req, res) => {
+    res.redirect('/api/api-docs');
 });
 
 // Base Health Check Route
-app.get('/health', (req, res) => {
+app.get(['/api/health', '/health'], (req, res) => {
     res.status(200).json({ status: 'UP', timestamp: new Date() });
 });
 
