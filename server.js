@@ -2,7 +2,7 @@ const app = require('./src/app');
 const { pool } = require('./src/config/db');
 require('dotenv').config();
 
-const PORT = 3000;
+const PORT = process.env.PORT || 5000;
 
 async function startServer() {
     // Verify Database connection before firing up the web server
@@ -14,7 +14,7 @@ async function startServer() {
         console.warn('⚠️ Server will run with database mock/fallback active.');
     }
 
-    // Start Listening for HTTP requests on 0.0.0.0:3000
+    // Start Listening for HTTP requests on 0.0.0.0:5000
     const server = app.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 Production server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
     });
