@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const AuthModel = require('../models/authModel');
+const emailService = require('../services/emailService');
 
 // Helper function to generate tokens
 const generateToken = (user) => {
@@ -79,8 +80,10 @@ const authController = {
                 return res.status(400).json({ success: false, message: 'Email and password are required.' });
             }
 
+            const cleanEmail = String(email).trim().toLowerCase();
+
             // 1. Find user by email
-            const user = await AuthModel.getUserByEmail(email);
+            const user = await AuthModel.getUserByEmail(cleanEmail);
             if (!user) {
                 return res.status(401).json({ success: false, message: 'Invalid email or password.' });
             }
@@ -186,17 +189,18 @@ const authController = {
             // 3. Generate a 15-minute token
             const token = jwt.sign(payload, secret, { expiresIn: '15m' });
 
-            // 4. Construct the reset link (Adapt FRONTEND_URL to your actual frontend domain)
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            // 4. Construct the frontend password reset link (points to your client app)
+            const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
             const resetLink = `${frontendUrl}/reset-password/${user.user_id}/${token}`;
 
-            // TODO: In production, integrate Nodemailer, SendGrid, or AWS SES here to email the 'resetLink' to user.email
-            console.log(`[DEV ONLY] Password Reset Link for ${user.email}:`, resetLink);
+            // 5. Send rich HTML password reset email via Nodemailer (Gmail SMTP)
+            const emailResult = await emailService.sendPasswordResetEmail(user.email, user.first_name, resetLink);
 
             return res.status(200).json({
                 success: true,
                 message: "If an account with that email exists, a password reset link has been sent.",
-                // NOTE: Remove `resetLink` from the JSON response before pushing to production!
+                email_sent: Boolean(emailResult && emailResult.sent),
+                // Include dev link when simulating or in development for effortless testing
                 dev_reset_link: resetLink 
             });
 
@@ -212,9 +216,9 @@ const authController = {
     resetPassword: async (req, res) => {
         try {
             const { userId, token } = req.params;
-            const { newPassword } = req.body;
+            const newPassword = req.body.newPassword || req.body.password;
 
-            if (!newPassword) {
+            if (!newPassword || typeof newPassword !== 'string' || !newPassword.trim()) {
                 return res.status(400).json({ success: false, message: "New password is required." });
             }
 
@@ -243,7 +247,10 @@ const authController = {
             const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
             // 5. Update the database
-            await AuthModel.updatePassword(userId, newPasswordHash);
+            const updated = await AuthModel.updatePassword(userId, newPasswordHash);
+            if (!updated) {
+                return res.status(404).json({ success: false, message: "User account could not be found to update." });
+            }
 
             return res.status(200).json({ 
                 success: true, 

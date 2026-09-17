@@ -5,12 +5,13 @@ const AuthModel = {
      * Check if a user already exists by their email
      */
     getUserByEmail: async (email) => {
+        const cleanEmail = (email || '').trim().toLowerCase();
         const queryText = `
             SELECT user_id, first_name, last_name, email, role, password_hash 
             FROM users 
-            WHERE email = $1 AND is_active = TRUE;
+            WHERE LOWER(email) = LOWER($1) AND is_active = TRUE;
         `;
-        const { rows } = await db.query(queryText, [email.toLowerCase()]);
+        const { rows } = await db.query(queryText, [cleanEmail]);
         return rows[0];
     },
 
@@ -18,13 +19,15 @@ const AuthModel = {
      * Check if an active user already exists by email OR phone number
      */
     checkUserExists: async (email, phoneNumber) => {
+        const cleanEmail = (email || '').trim().toLowerCase();
+        const cleanPhone = phoneNumber ? String(phoneNumber).trim() : null;
         const queryText = `
             SELECT email, phone_number 
             FROM users 
-            WHERE (email = $1 OR (phone_number = $2 AND $2 IS NOT NULL)) 
+            WHERE (LOWER(email) = LOWER($1) OR (phone_number = $2 AND $2 IS NOT NULL)) 
             AND is_active = TRUE;
         `;
-        const { rows } = await db.query(queryText, [email.toLowerCase(), phoneNumber || null]);
+        const { rows } = await db.query(queryText, [cleanEmail, cleanPhone]);
         return rows[0];
     },
 
@@ -97,7 +100,8 @@ const AuthModel = {
             RETURNING user_id;
         `;
         // updated_at is handled automatically by your Postgres trigger `set_timestamp_users`!
-        await db.query(queryText, [passwordHash, userId]);
+        const result = await db.query(queryText, [passwordHash, userId]);
+        return Boolean(result && (result.rowCount > 0 || (result.rows && result.rows.length > 0)));
     },
 
     

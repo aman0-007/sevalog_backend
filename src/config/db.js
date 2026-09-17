@@ -133,7 +133,48 @@ const mockAttendance = [
     }
 ];
 
-const mockTasks = [];
+const mockTasks = [
+    {
+        task_id: 't1111111-1111-4111-8111-111111111111',
+        event_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        created_by: '11111111-1111-4111-8111-111111111111',
+        assigned_to: '33333333-3333-4333-8333-333333333333',
+        title: 'Procure Wall Painting Brushes and Acrylic Paints',
+        description: 'Coordinate with local vendors in Chembur to collect eco-friendly paints and rollers.',
+        deadline: new Date(Date.now() + 86400000 * 2).toISOString(),
+        is_public: true,
+        hours_awarded: 2.50,
+        status: 'assigned',
+        volunteer_remarks: null,
+        admin_remarks: null,
+        is_deleted: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        event_title: 'Community Wall Painting Drive',
+        creator_first: 'Master',
+        creator_last: 'Admin',
+        assignee_first: 'Aman',
+        assignee_last: 'Dwivedi'
+    }
+];
+
+const mockCertificates = [
+    {
+        certificate_id: 'c79fb4cf-9c60-4966-9b54-dcf03d47ad92',
+        user_id: '33333333-3333-4333-8333-333333333333',
+        event_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        task_id: null,
+        type: 'event',
+        hours_credited: 4.50,
+        issued_at: '2026-09-15T14:30:00.000Z',
+        description: 'In recognition of dedicated service in Community Wall Painting Drive.',
+        event_title: 'Community Wall Painting Drive',
+        event_date: '2026-09-15',
+        first_name: 'Aman',
+        last_name: 'Dwivedi',
+        volunteer_name: 'Aman Dwivedi'
+    }
+];
 
 /**
  * In-memory Mock Query Engine for PostgreSQL queries when database is offline
@@ -153,16 +194,16 @@ async function executeMockQuery(text, params = []) {
     }
 
     // 3. User lookup by email
-    if (lower.includes('from users') && lower.includes('email = $1')) {
-        const email = String(params[0] || '').toLowerCase();
+    if (lower.includes('from users') && (lower.includes('email = $1') || lower.includes('lower(email) = lower($1)') || (lower.includes('email') && !lower.includes('phone_number') && !lower.includes('user_id = $1')))) {
+        const email = String(params[0] || '').trim().toLowerCase();
         const user = mockUsers.find(u => u.email.toLowerCase() === email && u.is_active);
         return { rows: user ? [user] : [], rowCount: user ? 1 : 0 };
     }
 
     // 4. Check user exists by email OR phone
-    if (lower.includes('from users') && (lower.includes('email = $1 or') || lower.includes('phone_number = $2'))) {
-        const email = String(params[0] || '').toLowerCase();
-        const phone = params[1] ? String(params[1]) : null;
+    if (lower.includes('from users') && (lower.includes('email') && lower.includes('phone_number'))) {
+        const email = String(params[0] || '').trim().toLowerCase();
+        const phone = params[1] ? String(params[1]).trim() : null;
         const user = mockUsers.find(u =>
             (u.email.toLowerCase() === email || (phone && u.phone_number === phone)) && u.is_active
         );
@@ -206,8 +247,9 @@ async function executeMockQuery(text, params = []) {
     }
 
     // 7. UPDATE users password
-    if (lower.startsWith('update users') && lower.includes('password_hash = $1')) {
-        const [passwordHash, userId] = params;
+    if (lower.startsWith('update users') && lower.includes('password_hash')) {
+        const passwordHash = params[0];
+        const userId = params[1];
         const user = mockUsers.find(u => u.user_id === userId);
         if (user) {
             user.password_hash = passwordHash;
@@ -215,9 +257,83 @@ async function executeMockQuery(text, params = []) {
         return { rows: user ? [{ user_id: userId }] : [], rowCount: user ? 1 : 0 };
     }
 
-    // 8. Public events queries
+    // 8. UPDATE users profile
+    if (lower.startsWith('update users set')) {
+        const userId = params[params.length - 1];
+        const user = mockUsers.find(u => u.user_id === userId);
+        if (user) {
+            if (params[0]) user.first_name = params[0];
+            if (params[1]) user.last_name = params[1];
+            return { rows: [user], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+    }
+
+    // 9. Admin Dashboard Metrics (Aggregates)
+    if (lower.includes('total_active_volunteers')) {
+        return {
+            rows: [{
+                total_active_volunteers: mockUsers.filter(u => u.role === 'volunteer').length || 48,
+                new_volunteers_this_month: 12,
+                total_seva_hours: "284.50",
+                total_completed_events: 16,
+                upcoming_published_events: mockEvents.filter(e => !e.is_deleted && e.status === 'published').length || 4,
+                action_required_drafts: 1
+            }],
+            rowCount: 1
+        };
+    }
+
+    // 10. Top Volunteers / Leaderboard
+    if (lower.includes('from volunteer_dashboard_stats') || lower.includes('from volunteer_dashboard_stats vsc')) {
+        if (lower.includes('user_id = $1')) {
+            // Volunteer own dashboard stats
+            return {
+                rows: [{
+                    user_id: params[0],
+                    total_hours_logged: 24.50,
+                    total_activities_attended: 6,
+                    events_attended: 4,
+                    tasks_completed: 2,
+                    current_rank: 'Active Volunteer',
+                    earned_badges: ['Impact Creator', 'Beach Warrior']
+                }],
+                rowCount: 1
+            };
+        }
+        // Top list / Leaderboard
+        return {
+            rows: [
+                { user_id: '33333333-3333-4333-8333-333333333333', first_name: 'Aman', last_name: 'Dwivedi', total_hours_logged: 42.50, total_activities_attended: 10, rank: 1 },
+                { user_id: '44444444-4444-4444-8444-444444444444', first_name: 'Priya', last_name: 'Nair', total_hours_logged: 36.00, total_activities_attended: 8, rank: 2 }
+            ],
+            rowCount: 2
+        };
+    }
+
+    // 11. Admin Active Events View
+    if (lower.includes('from active_events_view')) {
+        const events = mockEvents.filter(e => !e.is_deleted).slice(0, 5).map(e => ({
+            ...e,
+            current_registrations: e.current_registered || 0,
+            capacity_percentage: 45
+        }));
+        return { rows: events, rowCount: events.length };
+    }
+
+    // 12. Event Timeline / Community Feed
+    if (lower.includes('from event_timeline') || lower.includes('t.created_at as timestamp')) {
+        return {
+            rows: [
+                { log_id: 'tl-1', action: 'Event Published', timestamp: new Date().toISOString(), actor_first_name: 'Bhargav', actor_last_name: 'Godbole', event_title: 'Community Wall Painting Drive' },
+                { log_id: 'tl-2', action: 'Volunteer registration completed', timestamp: new Date(Date.now() - 3600000).toISOString(), actor_first_name: 'Aman', actor_last_name: 'Dwivedi', event_title: 'Community Wall Painting Drive' }
+            ],
+            rowCount: 2
+        };
+    }
+
+    // 13. Public events queries
     if (lower.includes('from events') && lower.includes('order by e.event_date asc') && lower.includes('limit 1')) {
-        // Latest single upcoming event
         const event = mockEvents.find(e => !e.is_deleted && e.status === 'published') || mockEvents[0];
         return { rows: event ? [event] : [], rowCount: event ? 1 : 0 };
     }
@@ -240,7 +356,13 @@ async function executeMockQuery(text, params = []) {
         return { rows: event ? [event] : [], rowCount: event ? 1 : 0 };
     }
 
-    // 9. Volunteer events listing
+    if (lower.includes('select * from events where event_id = $1')) {
+        const eventId = params[0];
+        const event = mockEvents.find(e => e.event_id === eventId && !e.is_deleted);
+        return { rows: event ? [event] : [], rowCount: event ? 1 : 0 };
+    }
+
+    // 14. Volunteer events listing
     if (lower.includes('from events e') && lower.includes('user_att.volunteer_id=$1')) {
         const userId = params[0];
         const result = mockEvents.filter(e => !e.is_deleted).map(e => {
@@ -260,7 +382,82 @@ async function executeMockQuery(text, params = []) {
         return { rows: result, rowCount: result.length };
     }
 
-    // 10. Default fallback
+    // 15. Admin all events listing
+    if (lower.includes('from events e') && lower.includes('creator_first_name')) {
+        const events = mockEvents.filter(e => !e.is_deleted).map(e => ({
+            ...e,
+            creator_first_name: 'Master',
+            creator_last_name: 'Admin',
+            volunteers_registered: e.current_registered || 0,
+            full_count: mockEvents.length
+        }));
+        return { rows: events, rowCount: events.length };
+    }
+
+    // 16. Admin all volunteers listing
+    if (lower.includes('from users u') && lower.includes("role = 'volunteer'")) {
+        const volunteers = mockUsers.filter(u => u.role === 'volunteer').map(u => ({
+            user_id: u.user_id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            email: u.email,
+            phone_number: u.phone_number,
+            college_name: u.college_name || 'VESIT Chembur',
+            profession: u.profession,
+            city: 'Mumbai',
+            state: 'Maharashtra',
+            is_active: u.is_active,
+            created_at: u.created_at,
+            events_attended: 4,
+            hours_logged: 24.50,
+            full_count: mockUsers.filter(v => v.role === 'volunteer').length
+        }));
+        return { rows: volunteers, rowCount: volunteers.length };
+    }
+
+    // 17. Tasks queries
+    if (lower.includes('from tasks')) {
+        if (lower.includes('task_id = $1')) {
+            const task = mockTasks.find(t => t.task_id === params[0] && !t.is_deleted);
+            return { rows: task ? [task] : [], rowCount: task ? 1 : 0 };
+        }
+        return { rows: mockTasks.filter(t => !t.is_deleted), rowCount: mockTasks.length };
+    }
+
+    // 18. Certificates
+    if (lower.includes('from certificates')) {
+        if (lower.includes('c.certificate_id = $1') || lower.includes('where c.certificate_id = $1')) {
+            const certId = params[0];
+            const cert = mockCertificates.find(c => c.certificate_id === certId);
+            return { rows: cert ? [cert] : [], rowCount: cert ? 1 : 0 };
+        }
+        if (lower.includes('c.user_id = $1')) {
+            const userId = params[0];
+            const certs = mockCertificates.filter(c => c.user_id === userId);
+            return { rows: certs, rowCount: certs.length };
+        }
+        return { rows: mockCertificates, rowCount: mockCertificates.length };
+    }
+
+    // 19. Attendance records for volunteer
+    if (lower.includes('from attendance a') && lower.includes('a.volunteer_id = $1')) {
+        const userId = params[0];
+        const atts = mockAttendance.filter(a => a.volunteer_id === userId);
+        const mapped = atts.map(a => {
+            const ev = mockEvents.find(e => e.event_id === a.event_id) || {};
+            return {
+                ...a,
+                title: ev.title,
+                event_date: ev.event_date,
+                start_time: ev.start_time,
+                end_time: ev.end_time,
+                location_name: ev.location_name
+            };
+        });
+        return { rows: mapped, rowCount: mapped.length };
+    }
+
+    // 20. Default fallback
     return { rows: [], rowCount: 0 };
 }
 
